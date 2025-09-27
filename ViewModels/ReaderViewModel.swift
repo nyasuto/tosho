@@ -324,6 +324,54 @@ class ReaderViewModel: ObservableObject {
         loadImageAtIndex(adjustedIndex)
     }
 
+    // MARK: - 見開きモード用1ページ単位調整
+
+    func adjustPageForward() {
+        guard isDoublePageMode else {
+            // 単ページモードでは通常のnextPageと同じ
+            nextPage()
+            return
+        }
+
+        guard currentPageIndex < totalPages - 1 else { return }
+
+        var newIndex = currentPageIndex + 1
+
+        // 表紙（0ページ）から1ページ目に移動する場合
+        if currentPageIndex == 0 {
+            newIndex = 1
+        } else {
+            // 通常の1ページ進み
+            newIndex = min(currentPageIndex + 1, totalPages - 1)
+        }
+
+        isLoading = true
+        loadImageAtIndex(newIndex)
+    }
+
+    func adjustPageBackward() {
+        guard isDoublePageMode else {
+            // 単ページモードでは通常のpreviousPageと同じ
+            previousPage()
+            return
+        }
+
+        guard currentPageIndex > 0 else { return }
+
+        var newIndex = currentPageIndex - 1
+
+        // 1ページ目から表紙（0ページ）に戻る場合
+        if currentPageIndex == 1 {
+            newIndex = 0
+        } else {
+            // 通常の1ページ戻り
+            newIndex = max(currentPageIndex - 1, 0)
+        }
+
+        isLoading = true
+        loadImageAtIndex(newIndex)
+    }
+
     // MARK: - Gallery Functions
 
     func toggleGallery() {

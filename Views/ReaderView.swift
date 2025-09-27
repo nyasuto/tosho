@@ -288,6 +288,22 @@ struct ReaderView: View {
         ) { _ in
             viewModel.toggleGallery()
         }
+
+        NotificationCenter.default.addObserver(
+            forName: .adjustPageForward,
+            object: nil,
+            queue: .main
+        ) { _ in
+            viewModel.adjustPageForward()
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: .adjustPageBackward,
+            object: nil,
+            queue: .main
+        ) { _ in
+            viewModel.adjustPageBackward()
+        }
     }
 }
 
