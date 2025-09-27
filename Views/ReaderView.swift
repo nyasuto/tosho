@@ -14,7 +14,7 @@ struct ReaderView: View {
     @State private var offset: CGSize = .zero
 
     var body: some View {
-        GeometryReader { geometry in
+        GeometryReader { _ in
             ZStack {
                 Color.black
                     .ignoresSafeArea()

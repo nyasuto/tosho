@@ -8,8 +8,8 @@
 import Foundation
 
 enum ReadingDirection: String, CaseIterable {
-    case leftToRight = "leftToRight"  // 左から右（西洋式）
-    case rightToLeft = "rightToLeft"  // 右から左（日本式）
+    case leftToRight  // 左から右（西洋式）
+    case rightToLeft  // 右から左（日本式）
 
     var displayName: String {
         switch self {
