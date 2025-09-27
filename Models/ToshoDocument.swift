@@ -124,6 +124,114 @@ class ToshoDocument: ObservableObject {
         currentPageIndex = 0
     }
 
+    // MARK: - Phase 3: High-Performance Parallel Processing
+
+    /// Concurrent extraction of multiple images for high-performance preloading
+    func getImagesInRange(_ range: Range<Int>) async throws -> [Int: NSImage] {
+        guard let contentType = contentType else {
+            throw ToshoDocumentError.invalidContent
+        }
+
+        switch contentType {
+        case .archive(let archiveURL, let imageList):
+            // Use ZIPFoundation's advanced parallel processing
+            #if canImport(ZIPFoundation)
+            return try await archiveExtractor.zipFoundationExtractor.extractImagesInRange(
+                range,
+                from: archiveURL,
+                imageList: imageList
+            )
+            #else
+            // Fallback to sequential loading for non-ZIPFoundation builds
+            var results: [Int: NSImage] = [:]
+            for index in range {
+                if let image = try getImage(at: index) {
+                    results[index] = image
+                }
+            }
+            return results
+            #endif
+
+        case .folder(let urls):
+            // Parallel folder image loading
+            return try await loadFolderImagesInRange(range, urls: urls)
+
+        case .singleImage:
+            // Single image - return immediately if in range
+            if range.contains(0), let image = try getImage(at: 0) {
+                return [0: image]
+            }
+            return [:]
+        }
+    }
+
+    /// Priority-based preloading for optimal user experience
+    func preloadImagesInRange(_ range: Range<Int>, priorityIndex: Int? = nil) async throws -> [Int: NSImage] {
+        guard let contentType = contentType else {
+            throw ToshoDocumentError.invalidContent
+        }
+
+        switch contentType {
+        case .archive(let archiveURL, let imageList):
+            #if canImport(ZIPFoundation)
+            return try await archiveExtractor.zipFoundationExtractor.preloadImagesInRange(
+                range,
+                from: archiveURL,
+                imageList: imageList,
+                priorityIndex: priorityIndex
+            )
+            #else
+            return try await getImagesInRange(range)
+            #endif
+
+        default:
+            // For non-archive content, use standard range loading
+            return try await getImagesInRange(range)
+        }
+    }
+
+    /// Concurrent folder image loading with TaskGroup
+    private func loadFolderImagesInRange(_ range: Range<Int>, urls: [URL]) async throws -> [Int: NSImage] {
+        let maxConcurrentTasks = 3 // Limit for folder loading to avoid overwhelming filesystem
+
+        return try await withThrowingTaskGroup(of: (Int, NSImage).self) { group in
+            var activeTasks = 0
+            var results: [Int: NSImage] = [:]
+
+            for index in range {
+                // Limit concurrent tasks
+                if activeTasks >= maxConcurrentTasks {
+                    if let (completedIndex, image) = try await group.next() {
+                        results[completedIndex] = image
+                        activeTasks -= 1
+                    }
+                }
+
+                // Add new task if within bounds
+                if index < urls.count {
+                    let imageURL = urls[index]
+                    group.addTask {
+                        guard let image = NSImage(contentsOf: imageURL) else {
+                            throw ToshoDocumentError.invalidContent
+                        }
+                        return (index, image)
+                    }
+                    activeTasks += 1
+                }
+            }
+
+            // Wait for remaining tasks
+            while activeTasks > 0 {
+                if let (completedIndex, image) = try await group.next() {
+                    results[completedIndex] = image
+                    activeTasks -= 1
+                }
+            }
+
+            return results
+        }
+    }
+
     private func isArchiveFile(_ url: URL) -> Bool {
         let ext = url.pathExtension.lowercased()
         return ext == "zip" || ext == "cbz"
