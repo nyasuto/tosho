@@ -22,11 +22,16 @@ class ToshoDocument: ObservableObject {
     private let archiveExtractor = ArchiveExtractor()
 
     func loadContent(from url: URL) throws {
+        DebugLogger.shared.log("Loading content from: \(url.path)", category: "ToshoDocument")
+
         if url.hasDirectoryPath {
+            DebugLogger.shared.log("Loading as folder", category: "ToshoDocument")
             try loadFolder(url)
         } else if isArchiveFile(url) {
+            DebugLogger.shared.log("Loading as archive: \(url.pathExtension)", category: "ToshoDocument")
             try loadArchive(url)
         } else {
+            DebugLogger.shared.log("Loading as single image", category: "ToshoDocument")
             loadSingleImage(url)
         }
     }
@@ -100,11 +105,15 @@ class ToshoDocument: ObservableObject {
     }
 
     private func loadArchive(_ archiveURL: URL) throws {
+        DebugLogger.shared.log("Loading archive: \(archiveURL.lastPathComponent)", category: "ToshoDocument")
+
         let imageList = try archiveExtractor.getImageList(from: archiveURL)
         guard !imageList.isEmpty else {
+            DebugLogger.shared.log("No images found in archive", category: "ToshoDocument")
             throw ToshoDocumentError.noImagesFound
         }
 
+        DebugLogger.shared.log("Archive loaded successfully with \(imageList.count) images", category: "ToshoDocument")
         contentType = .archive(archiveURL, imageList)
         totalPages = imageList.count
         currentPageIndex = 0
