@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Tosho (図書) is a native macOS manga viewer application built with SwiftUI. The project is currently in the planning/initial development stage.
+Tosho (図書) is a native macOS manga viewer application built with SwiftUI. The project has completed Phase 1 MVP and is progressing through Phase 2 features, including archive support and advanced reading modes.
 
 ## Technology Stack
 
@@ -86,40 +86,56 @@ The application follows MVVM architecture with these main components:
   - ToshoApp.swift: Main application delegate
 
 - **Views/**: SwiftUI view components
-  - ReaderView: Core manga reading interface
-  - ThumbnailView: Gallery view for browsing pages
-  - LibraryView: Manga library management
-  - SettingsView: Application preferences
+  - ContentView: Welcome screen and file/folder selection
+  - ReaderView: Core manga reading interface with single/double page modes
+  - WelcomeView: Initial landing page with drag-and-drop support
 
 - **ViewModels/**: Business logic and state management
-  - ReaderViewModel: Handles page navigation, zoom, and reading modes
-  - LibraryViewModel: Manages manga collection and metadata
+  - ReaderViewModel: Handles page navigation, zoom, single/double page modes, and memory-efficient caching
 
 - **Models/**: Data structures
-  - ToshoDocument: Represents a manga file/archive
-  - Page: Individual page representation
-  - ReadingProgress: Tracks user's reading position
+  - ToshoDocument: Unified document model for images, folders, and archives
 
 - **Services/**: Core functionality providers
-  - FileLoader: Handles file system operations
-  - ImageCache: Performance-critical image caching
-  - ArchiveExtractor: ZIP/RAR extraction logic
+  - ArchiveExtractor: ZIP/CBZ extraction with memory optimization
+  - FileLoader: Folder-based image file loading
 
 ### Key Technical Decisions
 
-1. **Image Loading**: Lazy loading with aggressive caching for smooth page transitions
-2. **Archive Handling**: Stream-based extraction to minimize memory usage
-3. **Navigation**: Keyboard shortcuts and trackpad gestures for power users
-4. **Performance**: Target <100ms image display, <50ms page transitions
+1. **Image Loading**: Implemented memory-efficient caching system with configurable cache size (default 5 images)
+2. **Archive Handling**: Individual file extraction to minimize memory footprint, avoiding full extraction
+3. **Double Page Mode**: Smart cover page detection with automatic single-page display for page 1
+4. **Navigation**: Full keyboard support with D-key toggle for reading modes
+5. **Performance**: Achieved smooth page transitions with background preloading
 
 ## Feature Development Phases
 
-### Current Phase: MVP (Phase 1)
-Focus on basic image display and navigation:
-- Single image file display (JPEG, PNG, WEBP)
-- Basic window management
-- Keyboard navigation (arrow keys)
-- Folder-based sequential image viewing
+### ✅ Completed: Phase 1 MVP
+Core functionality implemented:
+- ✅ Single image file display (JPEG, PNG, WEBP, HEIC, TIFF, BMP, GIF, AVIF)
+- ✅ Folder-based sequential image viewing with natural sorting
+- ✅ Full keyboard navigation (arrow keys, space)
+- ✅ Memory-efficient image caching and preloading
+- ✅ Drag-and-drop file/folder support
+- ✅ Welcome screen with file browser integration
+
+### ✅ Completed: Archive Support (Issue #5)
+- ✅ ZIP/CBZ archive extraction and viewing
+- ✅ Memory-optimized individual file extraction
+- ✅ Archive file listing and navigation
+
+### ✅ Completed: Double Page Mode (Issue #7)
+- ✅ Side-by-side page display for manga reading
+- ✅ Smart cover page handling (single page for page 1)
+- ✅ D-key toggle between single/double page modes
+- ✅ Adaptive page navigation (1 or 2 pages at a time)
+
+### 🚧 Current Phase: Phase 2 Advanced Features
+In progress:
+- [ ] Full-screen reading mode
+- [ ] Zoom and pan improvements
+- [ ] Reading progress tracking
+- [ ] Additional gesture support
 
 ### Important UI/UX Requirements
 
@@ -147,12 +163,16 @@ When implementing features:
 3. Verify keyboard and trackpad navigation
 4. Check memory usage stays under 500MB
 
-## Dependencies to Consider
+## Dependencies
 
-- **ZIPFoundation**: For ZIP/CBZ archive support
-- **UnrarKit**: For RAR/CBR archive support
+### Currently Used
+- **System unzip**: Leveraging macOS built-in unzip utility for ZIP/CBZ support
+- **UniformTypeIdentifiers**: Modern file type handling for all supported formats
 
-These should be added via Swift Package Manager when needed.
+### Considered but Skipped
+- **UnrarKit**: RAR/CBR support skipped due to licensing complexity (Issue #6)
+
+No external dependencies currently required - leveraging macOS system utilities and frameworks.
 
 ## Performance Requirements
 
