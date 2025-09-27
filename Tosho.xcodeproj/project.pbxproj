@@ -13,6 +13,7 @@
 		D0000007A1000001000000AA /* ReaderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0000008A1000001000000AA /* ReaderViewModel.swift */; };
 		D0000009A1000001000000AA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D000000AA1000001000000AA /* Assets.xcassets */; };
 		AE5F3155A07FC84B49909FBUILD /* ArchiveExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4C3DC8F29A8947FEBD80 /* ArchiveExtractor.swift */; };
+		ZE8F4D37B2C6A5E9F1234567 /* ZipExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = ZE9F2E48D3A5B1C6F7890123 /* ZipExtractor.swift */; };
 		TD647232D17360463790FABUILD /* ToshoDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = TD1CCDBAE5544641D29995 /* ToshoDocument.swift */; };
 		RD8472A3E12B59C7F891BUILD /* ReadingDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = RD5A39B8C47E28D4A653F0 /* ReadingDirection.swift */; };
 		DL8472A3E12B59C7F891BUILD /* DebugLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DL5A39B8C47E28D4A653F0 /* DebugLogger.swift */; };
@@ -28,6 +29,7 @@
 		D000000CA1000001000000AA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D000000EA1000001000000AB /* Tosho.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tosho.entitlements; sourceTree = "<group>"; };
 		AE4C3DC8F29A8947FEBD80 /* ArchiveExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveExtractor.swift; sourceTree = "<group>"; };
+		ZE9F2E48D3A5B1C6F7890123 /* ZipExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZipExtractor.swift; sourceTree = "<group>"; };
 		TD1CCDBAE5544641D29995 /* ToshoDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToshoDocument.swift; sourceTree = "<group>"; };
 		RD5A39B8C47E28D4A653F0 /* ReadingDirection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingDirection.swift; sourceTree = "<group>"; };
 		DL5A39B8C47E28D4A653F0 /* DebugLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogger.swift; sourceTree = "<group>"; };
@@ -119,6 +121,7 @@
 			isa = PBXGroup;
 			children = (
 				AE4C3DC8F29A8947FEBD80 /* ArchiveExtractor.swift */,
+				ZE9F2E48D3A5B1C6F7890123 /* ZipExtractor.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -232,6 +235,7 @@
 				D0000005A1000001000000AA /* ReaderView.swift in Sources */,
 				D0000007A1000001000000AA /* ReaderViewModel.swift in Sources */,
 				AE5F3155A07FC84B49909FBUILD /* ArchiveExtractor.swift in Sources */,
+				ZE8F4D37B2C6A5E9F1234567 /* ZipExtractor.swift in Sources */,
 				TD647232D17360463790FABUILD /* ToshoDocument.swift in Sources */,
 				RD8472A3E12B59C7F891BUILD /* ReadingDirection.swift in Sources */,
 				DL8472A3E12B59C7F891BUILD /* DebugLogger.swift in Sources */,
