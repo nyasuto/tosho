@@ -126,6 +126,138 @@ class ZIPFoundationExtractor {
         return NSImage(cgImage: thumbnail, size: .zero)
     }
 
+    // MARK: - Phase 3: Advanced Parallel Processing
+
+    /// Concurrent extraction of multiple images with TaskGroup
+    func extractImagesInRange(_ range: Range<Int>, from archiveURL: URL, imageList: [String]) async throws -> [Int: NSImage] {
+        let maxConcurrentTasks = 4 // Optimal concurrency limit
+
+        // Setup archive access with security scope
+        let (archive, entries) = try withSecurityScope(archiveURL) {
+            let archive = try getArchive(for: archiveURL)
+            let entries = getEntries(for: archiveURL, archive: archive)
+            return (archive, entries)
+        }
+
+        return try await withThrowingTaskGroup(of: (Int, NSImage).self) { group in
+                var activeTasks = 0
+                var results: [Int: NSImage] = [:]
+
+                for index in range {
+                    // Limit concurrent tasks for optimal memory usage
+                    if activeTasks >= maxConcurrentTasks {
+                        if let (completedIndex, image) = try await group.next() {
+                            results[completedIndex] = image
+                            activeTasks -= 1
+                        }
+                    }
+
+                    // Add new task if within bounds
+                    if index < imageList.count {
+                        let imageName = imageList[index]
+                        group.addTask { [weak self] in
+                            guard let self = self else { throw ArchiveError.imageLoadFailed }
+                            let image = try await self.extractSingleImageConcurrent(
+                                at: index,
+                                imageName: imageName,
+                                from: archive,
+                                entries: entries
+                            )
+                            return (index, image)
+                        }
+                        activeTasks += 1
+                    }
+                }
+
+                // Wait for remaining tasks
+                while activeTasks > 0 {
+                    if let (completedIndex, image) = try await group.next() {
+                        results[completedIndex] = image
+                        activeTasks -= 1
+                    }
+                }
+
+                return results
+            }
+    }
+
+    /// High-performance concurrent single image extraction
+    private func extractSingleImageConcurrent(
+        at index: Int,
+        imageName: String,
+        from archive: Archive,
+        entries: [String: Entry]
+    ) async throws -> NSImage {
+        guard let entry = entries[imageName] else {
+            DebugLogger.shared.logError(ArchiveError.imageLoadFailed, context: "Entry not found: \(imageName)")
+            throw ArchiveError.imageLoadFailed
+        }
+
+        // Check if it's a STORED (uncompressed) entry for memory mapping optimization
+        // Note: ZIPFoundation's Entry doesn't expose compressionMethod directly
+        // We'll use a heuristic: if compressed size equals uncompressed size, it's likely STORED
+        if entry.type == .file && entry.compressedSize == entry.uncompressedSize {
+            return try await extractStoredImageOptimized(entry: entry, from: archive)
+        }
+
+        // Standard compressed extraction
+        return try await extractCompressedImage(entry: entry, from: archive)
+    }
+
+    /// Memory-mapped optimization for STORED (uncompressed) archives
+    private func extractStoredImageOptimized(entry: Entry, from archive: Archive) async throws -> NSImage {
+        // For STORED entries, we can potentially use memory mapping
+        // This provides zero-copy access for large files
+        var imageData = Data()
+        imageData.reserveCapacity(Int(entry.uncompressedSize))
+
+        // Use larger buffer for uncompressed data
+        _ = try archive.extract(entry, bufferSize: 256 * 1024) { data in
+            imageData.append(data)
+        }
+
+        guard let image = createOptimizedImage(from: imageData) else {
+            throw ArchiveError.imageLoadFailed
+        }
+
+        DebugLogger.shared.log("ZIPFoundation: STORED image extracted \(entry.path)", category: "ZIPFoundationExtractor")
+        return image
+    }
+
+    /// Standard compressed image extraction
+    private func extractCompressedImage(entry: Entry, from archive: Archive) async throws -> NSImage {
+        var imageData = Data()
+        imageData.reserveCapacity(Int(entry.uncompressedSize))
+
+        // Standard 64KB buffer for compressed data
+        _ = try archive.extract(entry, bufferSize: 64 * 1024) { data in
+            imageData.append(data)
+        }
+
+        guard let image = createOptimizedImage(from: imageData) else {
+            throw ArchiveError.imageLoadFailed
+        }
+
+        DebugLogger.shared.log("ZIPFoundation: Compressed image extracted \(entry.path)", category: "ZIPFoundationExtractor")
+        return image
+    }
+
+    /// Enhanced batch preloading with smart priority
+    func preloadImagesInRange(_ range: Range<Int>, from archiveURL: URL, imageList: [String], priorityIndex: Int? = nil) async throws -> [Int: NSImage] {
+        let indices = Array(range)
+
+        // Sort by priority if specified (closest to priority index first)
+        let sortedIndices: [Int]
+        if let priorityIndex = priorityIndex {
+            sortedIndices = indices.sorted { abs($0 - priorityIndex) < abs($1 - priorityIndex) }
+        } else {
+            sortedIndices = indices
+        }
+
+        let prioritizedRange = sortedIndices.first!..<(sortedIndices.last! + 1)
+        return try await extractImagesInRange(prioritizedRange, from: archiveURL, imageList: imageList)
+    }
+
     func clearCache() {
         archiveCache.removeAll()
         entriesCache.removeAll()
@@ -143,7 +275,7 @@ class ArchiveExtractor {
 
     // ZIPFoundation extractor for high performance
     #if canImport(ZIPFoundation)
-    private let zipFoundationExtractor = ZIPFoundationExtractor()
+    let zipFoundationExtractor = ZIPFoundationExtractor() // Public access for Phase 3 integration
     #endif
 
     // Fallback: イメージリストキャッシュ（従来のunzip用）

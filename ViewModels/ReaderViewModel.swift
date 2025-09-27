@@ -233,7 +233,45 @@ class ReaderViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Phase 3: Enhanced Parallel Preloading
+
     private func preloadImagesInRange(_ range: Range<Int>, priorityIndex: Int) async {
+        guard !Task.isCancelled else { return }
+
+        // Use Phase 3 high-performance parallel processing for archives
+        if case .archive = document.contentType {
+            await preloadArchiveImagesInRangePhase3(range, priorityIndex: priorityIndex)
+        } else {
+            // Use Phase 2 smart preloading for folders and single images
+            await preloadImagesInRangePhase2(range, priorityIndex: priorityIndex)
+        }
+    }
+
+    /// Phase 3: High-performance archive preloading with advanced parallel processing
+    private func preloadArchiveImagesInRangePhase3(_ range: Range<Int>, priorityIndex: Int) async {
+        do {
+            DebugLogger.shared.log("Phase 3: Starting high-performance archive preload for range: \(range)", category: "ReaderViewModel")
+
+            // Use ToshoDocument's advanced parallel processing
+            let preloadedImages = try await document.preloadImagesInRange(range, priorityIndex: priorityIndex)
+
+            await MainActor.run {
+                // Cache all preloaded images
+                for (index, image) in preloadedImages {
+                    let cacheKey = generateCacheKey(for: index)
+                    imageCache.setImage(image, forKey: cacheKey)
+                }
+
+                DebugLogger.shared.log("Phase 3: Cached \(preloadedImages.count) images from parallel extraction", category: "ReaderViewModel")
+            }
+        } catch {
+            DebugLogger.shared.logError(error, context: "Phase 3 archive preload failed, falling back to Phase 2")
+            await preloadImagesInRangePhase2(range, priorityIndex: priorityIndex)
+        }
+    }
+
+    /// Phase 2: Smart preloading fallback for non-archive content or Phase 3 failures
+    private func preloadImagesInRangePhase2(_ range: Range<Int>, priorityIndex: Int) async {
         guard !Task.isCancelled else { return }
 
         // Create cache keys for all images in range
@@ -258,7 +296,7 @@ class ReaderViewModel: ObservableObject {
             }
         }
 
-        DebugLogger.shared.log("Smart preload completed for range: \(range)", category: "ReaderViewModel")
+        DebugLogger.shared.log("Phase 2: Smart preload completed for range: \(range)", category: "ReaderViewModel")
     }
 
     private func preloadSingleImage(at index: Int) async {
@@ -368,49 +406,113 @@ class ReaderViewModel: ObservableObject {
     private func preloadAllImages() {
         guard totalPages > 0 else { return }
 
-        DebugLogger.shared.log("Starting preload of all \(totalPages) images", category: "ReaderViewModel")
+        DebugLogger.shared.log("Starting Phase 3 preload of all \(totalPages) images", category: "ReaderViewModel")
 
         preloadTask = Task { [weak self] in
             guard let self = self else { return }
-            let totalPagesCount = self.totalPages
-            var loadedImages: [NSImage] = Array(repeating: NSImage(), count: totalPagesCount)
 
-            for index in 0..<totalPagesCount {
-                // キャンセルチェック
+            // Try Phase 3 high-performance bulk loading for archives
+            if case .archive = self.document.contentType {
+                await self.preloadAllImagesPhase3()
+            } else {
+                // Fallback to sequential loading for folders/single images
+                await self.preloadAllImagesSequential()
+            }
+        }
+    }
+
+    /// Phase 3: High-performance bulk archive loading with parallel processing
+    private func preloadAllImagesPhase3() async {
+        let totalPagesCount = self.totalPages
+        let batchSize = 8 // Process in batches to manage memory usage
+        var allLoadedImages: [NSImage] = Array(repeating: NSImage(), count: totalPagesCount)
+
+        do {
+            for batchStart in stride(from: 0, to: totalPagesCount, by: batchSize) {
                 if Task.isCancelled { return }
 
-                do {
-                    if let image = try self.document.getImage(at: index) {
-                        loadedImages[index] = image
+                let batchEnd = min(batchStart + batchSize, totalPagesCount)
+                let batchRange = batchStart..<batchEnd
 
-                        // 進捗を更新（メインスレッド）
-                        await MainActor.run { [weak self] in
-                            self?.loadingProgress = Double(index + 1) / Double(totalPagesCount)
+                DebugLogger.shared.log("Phase 3: Processing batch \(batchStart)..<\(batchEnd)", category: "ReaderViewModel")
 
-                            // 最初の画像が読み込まれたら即座に表示
-                            if index == 0 {
-                                self?.allImages = loadedImages
-                                self?.displayImagesFromCache(index: 0)
-                            }
-                        }
-                    }
-                } catch {
-                    DebugLogger.shared.logError(error, context: "Preloading image at index \(index)")
-                    // エラーが発生しても続行
-                    continue
+                // Use high-performance parallel extraction
+                let batchImages = try await self.document.getImagesInRange(batchRange)
+
+                // Store in final array
+                for (index, image) in batchImages {
+                    allLoadedImages[index] = image
                 }
 
-                // ネットワークドライブの負荷軽減のため少し待機
-                try? await Task.sleep(nanoseconds: 1_000_000) // 1ms
+                // Update progress and display first image if needed
+                await MainActor.run { [weak self] in
+                    self?.loadingProgress = Double(batchEnd) / Double(totalPagesCount)
+
+                    // Display first image immediately when available
+                    if batchStart == 0 && !allLoadedImages.isEmpty {
+                        self?.allImages = allLoadedImages
+                        self?.displayImagesFromCache(index: 0)
+                    }
+                }
+
+                // Brief pause between batches to prevent overwhelming the system
+                try? await Task.sleep(nanoseconds: 5_000_000) // 5ms
             }
 
-            // 全て完了
+            // Complete
             await MainActor.run { [weak self] in
-                self?.allImages = loadedImages
+                self?.allImages = allLoadedImages
                 self?.isLoading = false
                 self?.loadingProgress = 1.0
-                DebugLogger.shared.log("Preload completed for \(totalPagesCount) images", category: "ReaderViewModel")
+                DebugLogger.shared.log("Phase 3: High-performance preload completed for \(totalPagesCount) images", category: "ReaderViewModel")
             }
+
+        } catch {
+            DebugLogger.shared.logError(error, context: "Phase 3 bulk loading failed, falling back to sequential")
+            await preloadAllImagesSequential()
+        }
+    }
+
+    /// Sequential loading fallback for folders or Phase 3 failures
+    private func preloadAllImagesSequential() async {
+        let totalPagesCount = self.totalPages
+        var loadedImages: [NSImage] = Array(repeating: NSImage(), count: totalPagesCount)
+
+        for index in 0..<totalPagesCount {
+            // キャンセルチェック
+            if Task.isCancelled { return }
+
+            do {
+                if let image = try self.document.getImage(at: index) {
+                    loadedImages[index] = image
+
+                    // 進捗を更新（メインスレッド）
+                    await MainActor.run { [weak self] in
+                        self?.loadingProgress = Double(index + 1) / Double(totalPagesCount)
+
+                        // 最初の画像が読み込まれたら即座に表示
+                        if index == 0 {
+                            self?.allImages = loadedImages
+                            self?.displayImagesFromCache(index: 0)
+                        }
+                    }
+                }
+            } catch {
+                DebugLogger.shared.logError(error, context: "Sequential preloading image at index \(index)")
+                // エラーが発生しても続行
+                continue
+            }
+
+            // ネットワークドライブの負荷軽減のため少し待機
+            try? await Task.sleep(nanoseconds: 1_000_000) // 1ms
+        }
+
+        // 全て完了
+        await MainActor.run { [weak self] in
+            self?.allImages = loadedImages
+            self?.isLoading = false
+            self?.loadingProgress = 1.0
+            DebugLogger.shared.log("Sequential preload completed for \(totalPagesCount) images", category: "ReaderViewModel")
         }
     }
 
