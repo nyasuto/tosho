@@ -181,6 +181,9 @@
 			dependencies = (
 			);
 			name = Tosho;
+			packageProductDependencies = (
+				ZIP002A1000001000000AA /* ZIPFoundation */,
+			);
 			productName = Tosho;
 			productReference = D000000BA1000001000000AA /* Tosho.app */;
 			productType = "com.apple.product-type.application";
@@ -209,6 +212,9 @@
 				Base,
 			);
 			mainGroup = D000000EA1000001000000AA;
+			packageReferences = (
+				ZIP001A1000001000000AA /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+			);
 			productRefGroup = D0000010A1000001000000AA /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -217,6 +223,25 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		ZIP001A1000001000000AA /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.19;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		ZIP002A1000001000000AA /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = ZIP001A1000001000000AA /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+/* End XCSwiftPackageProductDependency section */
 
 /* Begin PBXResourcesBuildPhase section */
 		D000001BA1000001000000AA /* Resources */ = {
@@ -377,6 +402,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = App/Tosho.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
@@ -407,6 +433,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ALLOW_ENTITLEMENTS_MODIFICATION = YES;
 				CODE_SIGN_ENTITLEMENTS = App/Tosho.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
