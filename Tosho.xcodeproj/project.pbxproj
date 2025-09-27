@@ -17,6 +17,7 @@
 		TD647232D17360463790FABUILD /* ToshoDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = TD1CCDBAE5544641D29995 /* ToshoDocument.swift */; };
 		RD8472A3E12B59C7F891BUILD /* ReadingDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = RD5A39B8C47E28D4A653F0 /* ReadingDirection.swift */; };
 		DL8472A3E12B59C7F891BUILD /* DebugLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DL5A39B8C47E28D4A653F0 /* DebugLogger.swift */; };
+		FAV72B4E9C3D8A5F1234567 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAV51A3B7C8E4D6F9012345 /* FavoritesView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,6 +34,7 @@
 		TD1CCDBAE5544641D29995 /* ToshoDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToshoDocument.swift; sourceTree = "<group>"; };
 		RD5A39B8C47E28D4A653F0 /* ReadingDirection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingDirection.swift; sourceTree = "<group>"; };
 		DL5A39B8C47E28D4A653F0 /* DebugLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebugLogger.swift; sourceTree = "<group>"; };
+		FAV51A3B7C8E4D6F9012345 /* FavoritesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FavoritesView.swift; sourceTree = "<group>"; };
 		DOC001A1000001000000AA /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		DOC002A1000001000000AA /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
 		DOC003A1000001000000AA /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
@@ -96,6 +98,7 @@
 			children = (
 				D0000004A1000001000000AA /* ContentView.swift */,
 				D0000006A1000001000000AA /* ReaderView.swift */,
+				FAV51A3B7C8E4D6F9012345 /* FavoritesView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -239,6 +242,7 @@
 				TD647232D17360463790FABUILD /* ToshoDocument.swift in Sources */,
 				RD8472A3E12B59C7F891BUILD /* ReadingDirection.swift in Sources */,
 				DL8472A3E12B59C7F891BUILD /* DebugLogger.swift in Sources */,
+				FAV72B4E9C3D8A5F1234567 /* FavoritesView.swift in Sources */,
 				D0000001A1000001000000AA /* ToshoApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
