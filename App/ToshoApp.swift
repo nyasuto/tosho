@@ -80,6 +80,13 @@ struct ToshoApp: App {
                     NotificationCenter.default.post(name: .toggleFullScreen, object: nil)
                 }
                 .keyboardShortcut("F", modifiers: [.command, .control])
+
+                Divider()
+
+                Button("Show Gallery") {
+                    NotificationCenter.default.post(name: .toggleGallery, object: nil)
+                }
+                .keyboardShortcut("t", modifiers: [.command])
             }
         }
     }
@@ -187,4 +194,5 @@ extension Notification.Name {
     static let toggleDoublePage = Notification.Name("tosho.toggleDoublePage")
     static let toggleReadingDirection = Notification.Name("tosho.toggleReadingDirection")
     static let toggleFullScreen = Notification.Name("tosho.toggleFullScreen")
+    static let toggleGallery = Notification.Name("tosho.toggleGallery")
 }
