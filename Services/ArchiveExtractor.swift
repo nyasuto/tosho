@@ -39,10 +39,12 @@ class ArchiveExtractor {
 
     func extractSingleImage(at index: Int, from archiveURL: URL, imageList: [String]) throws -> NSImage? {
         guard index >= 0 && index < imageList.count else {
+            DebugLogger.shared.logArchiveOperation("Index out of range", file: archiveURL.lastPathComponent, details: "Index: \(index), Total: \(imageList.count)")
             throw ArchiveError.indexOutOfRange
         }
 
         let imageName = imageList[index]
+        DebugLogger.shared.logArchiveOperation("Extracting image", file: archiveURL.lastPathComponent, details: "Image: \(imageName) (index \(index))")
         let tempImageURL = tempDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("temp")
 
         try extractSpecificFile(fileName: imageName, from: archiveURL, to: tempImageURL)
@@ -57,7 +59,10 @@ class ArchiveExtractor {
     }
 
     func getImageList(from archiveURL: URL) throws -> [String] {
+        DebugLogger.shared.logArchiveOperation("Getting image list", file: archiveURL.lastPathComponent)
+
         guard isArchiveFile(archiveURL) else {
+            DebugLogger.shared.logError(ArchiveError.unsupportedFormat, context: "File: \(archiveURL.lastPathComponent)")
             throw ArchiveError.unsupportedFormat
         }
 
@@ -72,15 +77,20 @@ class ArchiveExtractor {
         process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {
+            DebugLogger.shared.logArchiveOperation("Unzip list failed", file: archiveURL.lastPathComponent, details: "Exit code: \(process.terminationStatus)")
             throw ArchiveError.extractionFailed
         }
 
         let data = pipe.fileHandleForReading.readDataToEndOfFile()
         guard let output = String(data: data, encoding: .utf8) else {
+            DebugLogger.shared.logArchiveOperation("Failed to decode unzip output", file: archiveURL.lastPathComponent)
             throw ArchiveError.invalidArchive
         }
 
-        return parseImageFilesFromUnzipList(output)
+        DebugLogger.shared.logArchiveOperation("Successfully listed archive contents", file: archiveURL.lastPathComponent, details: "Output length: \(output.count)")
+        let imageFiles = parseImageFilesFromUnzipList(output)
+        DebugLogger.shared.logArchiveOperation("Found \(imageFiles.count) image files", file: archiveURL.lastPathComponent)
+        return imageFiles
     }
 
     private func isArchiveFile(_ url: URL) -> Bool {

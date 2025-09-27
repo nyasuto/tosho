@@ -50,6 +50,7 @@ class ReaderViewModel: ObservableObject {
     func loadContent(from url: URL) {
         isLoading = true
         errorMessage = nil
+        DebugLogger.shared.log("Starting to load content from: \(url.lastPathComponent)", category: "ReaderViewModel")
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
@@ -63,6 +64,7 @@ class ReaderViewModel: ObservableObject {
                     self?.loadImageAtIndex(0)
                 }
             } catch {
+                DebugLogger.shared.logError(error, category: "ReaderViewModel", context: "Loading content from \(url.lastPathComponent)")
                 DispatchQueue.main.async {
                     self?.errorMessage = error.localizedDescription
                     self?.isLoading = false
