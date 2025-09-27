@@ -8,10 +8,22 @@
 import SwiftUI
 
 struct ReaderView: View {
-    let fileURL: URL
-    @StateObject private var viewModel = ReaderViewModel()
+    let fileURL: URL?
+    @ObservedObject var viewModel: ReaderViewModel
     @State private var currentZoom: CGFloat = 1.0
     @State private var offset: CGSize = .zero
+
+    // Legacy initializer for existing ContentView
+    init(fileURL: URL) {
+        self.fileURL = fileURL
+        self.viewModel = ReaderViewModel()
+    }
+
+    // New initializer for DocumentReaderView
+    init(viewModel: ReaderViewModel) {
+        self.fileURL = nil
+        self.viewModel = viewModel
+    }
 
     var body: some View {
         GeometryReader { _ in
@@ -211,7 +223,9 @@ struct ReaderView: View {
                 }
             }
             .onAppear {
-                viewModel.loadContent(from: fileURL)
+                if let fileURL = fileURL {
+                    viewModel.loadContent(from: fileURL)
+                }
                 setupNotificationObservers()
             }
             .onHover { hovering in

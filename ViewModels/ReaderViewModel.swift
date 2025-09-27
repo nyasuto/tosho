@@ -45,11 +45,19 @@ class ReaderViewModel: ObservableObject {
     private var currentFileURL: URL? // セキュリティスコープ管理用
 
     deinit {
+        DebugLogger.shared.log("ReaderViewModel deinitializing", category: "ReaderViewModel")
+
         // セキュリティスコープのアクセス権限を終了
         if let fileURL = currentFileURL {
             favoritesManager.stopAccessingFileFromHistory(fileURL)
         }
         preloadTask?.cancel()
+
+        // 画像キャッシュをクリア
+        allImages.removeAll()
+        thumbnailCache.removeAll()
+
+        DebugLogger.shared.log("ReaderViewModel memory released", category: "ReaderViewModel")
     }
 
     var hasNextPage: Bool {
