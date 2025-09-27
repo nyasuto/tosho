@@ -40,6 +40,7 @@ class ReaderViewModel: ObservableObject {
     private var document: ToshoDocument?
     private let cacheSize = 5
     private let thumbnailSize = CGSize(width: 90, height: 130)
+    private let favoritesManager = FavoritesManager.shared
 
     var hasNextPage: Bool {
         if isDoublePageMode {
@@ -68,6 +69,9 @@ class ReaderViewModel: ObservableObject {
         isLoading = true
         errorMessage = nil
         DebugLogger.shared.log("Starting to load content from: \(url.lastPathComponent)", category: "ReaderViewModel")
+
+        // ファイルアクセスを記録
+        favoritesManager.recordFileAccess(url)
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {

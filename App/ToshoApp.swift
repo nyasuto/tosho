@@ -35,6 +35,11 @@ struct ToshoApp: App {
                 }
                 .keyboardShortcut("H", modifiers: [.command, .shift])
 
+                Button("Favorites...") {
+                    showFavorites()
+                }
+                .keyboardShortcut("F", modifiers: [.command, .shift])
+
                 if !recentFilesManager.recentFiles.isEmpty {
                     Divider()
 
@@ -161,6 +166,10 @@ struct ToshoApp: App {
     private func showRecentFiles() {
         NotificationCenter.default.post(name: .showRecentFiles, object: nil)
     }
+
+    private func showFavorites() {
+        NotificationCenter.default.post(name: .showFavorites, object: nil)
+    }
 }
 
 // MARK: - App Delegate
@@ -189,6 +198,8 @@ extension Notification.Name {
     static let showRecentFiles = Notification.Name("tosho.showRecentFiles")
     static let recentFileOpened = Notification.Name("tosho.recentFileOpened")
     static let closeRecentFiles = Notification.Name("tosho.closeRecentFiles")
+    static let showFavorites = Notification.Name("tosho.showFavorites")
+    static let closeFavorites = Notification.Name("tosho.closeFavorites")
     static let nextPage = Notification.Name("tosho.nextPage")
     static let previousPage = Notification.Name("tosho.previousPage")
     static let toggleDoublePage = Notification.Name("tosho.toggleDoublePage")

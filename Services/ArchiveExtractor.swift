@@ -7,6 +7,7 @@
 
 import Foundation
 import AppKit
+import UserNotifications
 
 class ArchiveExtractor {
     private let supportedImageExtensions = ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif", "avif"]
@@ -380,6 +381,173 @@ class RecentFilesManager: ObservableObject {
             for item in self.recentFiles.prefix(10) { // Limit system menu to 10 items
                 NSDocumentController.shared.noteNewRecentDocumentURL(item.url)
             }
+        }
+    }
+}
+
+// MARK: - File History Management
+
+struct FileHistoryItem: Codable, Identifiable {
+    let id: UUID
+    let url: URL
+    let fileName: String
+    private(set) var accessCount: Int
+    private(set) var firstAccessed: Date
+    private(set) var lastAccessed: Date
+    private(set) var isFavorite: Bool
+    private(set) var isAutoFavorite: Bool // システムが自動で付けたお気に入り
+
+    init(url: URL) {
+        self.id = UUID()
+        self.url = url
+        self.fileName = url.lastPathComponent
+        self.accessCount = 1
+        self.firstAccessed = Date()
+        self.lastAccessed = Date()
+        self.isFavorite = false
+        self.isAutoFavorite = false
+    }
+
+    // アクセス回数を増やす
+    mutating func incrementAccess() {
+        accessCount += 1
+        lastAccessed = Date()
+    }
+
+    // お気に入り状態を設定
+    mutating func setFavorite(_ favorite: Bool, isAuto: Bool = false) {
+        isFavorite = favorite
+        if isAuto {
+            isAutoFavorite = favorite
+        }
+    }
+
+    // 自動お気に入り対象かどうか
+    var shouldBeAutoFavorite: Bool {
+        return accessCount >= 5 && !isAutoFavorite
+    }
+
+    var formattedAccessCount: String {
+        return "\(accessCount)回"
+    }
+
+    var formattedLastAccessed: String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.dateTimeStyle = .named
+        return formatter.localizedString(for: lastAccessed, relativeTo: Date())
+    }
+}
+
+class FavoritesManager: ObservableObject {
+    static let shared = FavoritesManager()
+
+    @Published private(set) var fileHistory: [FileHistoryItem] = []
+    @Published private(set) var autoFavoriteSuggestions: [FileHistoryItem] = []
+
+    private let userDefaults = UserDefaults.standard
+    private let fileHistoryKey = "ToshoFileHistory"
+    private let autoFavoriteThreshold = 5
+
+    private init() {
+        loadFileHistory()
+        updateAutoFavoriteSuggestions()
+    }
+
+    // MARK: - Public Methods
+
+    func recordFileAccess(_ url: URL) {
+        DebugLogger.shared.log("Recording file access: \(url.lastPathComponent)", category: "FavoritesManager")
+
+        if let existingIndex = fileHistory.firstIndex(where: { $0.url == url }) {
+            // 既存のアイテムのアクセス回数を増やす
+            fileHistory[existingIndex].incrementAccess()
+
+            // 自動お気に入り候補チェック
+            let item = fileHistory[existingIndex]
+            if item.shouldBeAutoFavorite {
+                showAutoFavoriteSuggestion(for: item)
+            }
+        } else {
+            // 新しいアイテムを追加
+            let newItem = FileHistoryItem(url: url)
+            fileHistory.insert(newItem, at: 0)
+        }
+
+        saveFileHistory()
+        updateAutoFavoriteSuggestions()
+    }
+
+    func setFavorite(_ url: URL, favorite: Bool, isAuto: Bool = false) {
+        if let index = fileHistory.firstIndex(where: { $0.url == url }) {
+            fileHistory[index].setFavorite(favorite, isAuto: isAuto)
+            saveFileHistory()
+            updateAutoFavoriteSuggestions()
+
+            DebugLogger.shared.log("Set favorite \(favorite) for: \(url.lastPathComponent)", category: "FavoritesManager")
+        }
+    }
+
+    func getFavorites() -> [FileHistoryItem] {
+        return fileHistory.filter { $0.isFavorite }.sorted { $0.lastAccessed > $1.lastAccessed }
+    }
+
+    func getFrequentlyAccessed() -> [FileHistoryItem] {
+        return fileHistory.filter { $0.accessCount >= 3 }.sorted { $0.accessCount > $1.accessCount }
+    }
+
+    func dismissAutoFavoriteSuggestion(_ url: URL) {
+        if let index = fileHistory.firstIndex(where: { $0.url == url }) {
+            fileHistory[index].setFavorite(false, isAuto: true) // 自動提案を無効化
+            saveFileHistory()
+            updateAutoFavoriteSuggestions()
+        }
+    }
+
+    func clearHistory() {
+        fileHistory.removeAll()
+        autoFavoriteSuggestions.removeAll()
+        saveFileHistory()
+    }
+
+    // MARK: - Private Methods
+
+    private func loadFileHistory() {
+        guard let data = userDefaults.data(forKey: fileHistoryKey),
+              let items = try? JSONDecoder().decode([FileHistoryItem].self, from: data) else {
+            DebugLogger.shared.log("No file history found or failed to decode", category: "FavoritesManager")
+            return
+        }
+
+        fileHistory = items
+        DebugLogger.shared.log("Loaded file history: \(items.count) items", category: "FavoritesManager")
+    }
+
+    private func saveFileHistory() {
+        do {
+            let data = try JSONEncoder().encode(fileHistory)
+            userDefaults.set(data, forKey: fileHistoryKey)
+            DebugLogger.shared.log("Saved file history: \(fileHistory.count) items", category: "FavoritesManager")
+        } catch {
+            DebugLogger.shared.logError(error, context: "Failed to save file history")
+        }
+    }
+
+    private func updateAutoFavoriteSuggestions() {
+        autoFavoriteSuggestions = fileHistory.filter { $0.shouldBeAutoFavorite }
+        DebugLogger.shared.log("Updated auto-favorite suggestions: \(autoFavoriteSuggestions.count) items", category: "FavoritesManager")
+    }
+
+    private func showAutoFavoriteSuggestion(for item: FileHistoryItem) {
+        // 通知でユーザーに自動お気に入り候補を提案
+        DispatchQueue.main.async {
+            let content = UNMutableNotificationContent()
+            content.title = "お気に入り候補"
+            content.body = "\(item.fileName) を \(item.accessCount) 回開きました。お気に入りに追加しますか？"
+            content.categoryIdentifier = "AUTO_FAVORITE_SUGGESTION"
+            content.userInfo = ["fileURL": item.url.absoluteString]
+
+            let request = UNNotificationRequest(identifier: "auto_favorite_\(item.id.uuidString)", content: content, trigger: nil)
+            UNUserNotificationCenter.current().add(request)
         }
     }
 }
