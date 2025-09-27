@@ -18,6 +18,8 @@ class ReaderViewModel: ObservableObject {
     @Published var showControls: Bool = false
     @Published var isDoublePageMode: Bool = false
 
+    @ObservedObject var readingSettings = ReadingSettings()
+
     private var imageCache: [Int: NSImage] = [:]
     private var document: ToshoDocument?
     private let cacheSize = 5
@@ -70,7 +72,7 @@ class ReaderViewModel: ObservableObject {
     }
 
     private func loadImageAtIndex(_ index: Int) {
-        guard let document = document, index >= 0 && index < totalPages else {
+        guard let _ = document, index >= 0 && index < totalPages else {
             DispatchQueue.main.async {
                 self.isLoading = false
             }
@@ -86,7 +88,7 @@ class ReaderViewModel: ObservableObject {
     }
 
     private func loadSinglePageImage(index: Int) {
-        guard let document = document else { return }
+        guard let document = self.document else { return }
 
         if let cachedImage = imageCache[index] {
             DispatchQueue.main.async {
@@ -129,7 +131,7 @@ class ReaderViewModel: ObservableObject {
     }
 
     private func loadDoublePageImages(startIndex: Int) {
-        guard let document = document else { return }
+        guard let document = self.document else { return }
 
         let firstIndex = startIndex
         let secondIndex = startIndex + 1
@@ -256,6 +258,31 @@ class ReaderViewModel: ObservableObject {
 
         isLoading = true
         loadImageAtIndex(newIndex)
+    }
+
+    // 右から左に読む場合のページ移動
+    func moveForward() {
+        if readingSettings.readingDirection.isRightToLeft {
+            // 右綴じ：右→左の順で読むので、forwardは左方向（nextPage）
+            nextPage()
+        } else {
+            // 左綴じ：左→右の順で読むので、forwardは右方向（nextPage）
+            nextPage()
+        }
+    }
+
+    func moveBackward() {
+        if readingSettings.readingDirection.isRightToLeft {
+            // 右綴じ：右→左の順で読むので、backwardは右方向（previousPage）
+            previousPage()
+        } else {
+            // 左綴じ：左→右の順で読むので、backwardは左方向（previousPage）
+            previousPage()
+        }
+    }
+
+    func toggleReadingDirection() {
+        readingSettings.toggleDirection()
     }
 
     func toggleDoublePageMode() {

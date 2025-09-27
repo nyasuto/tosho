@@ -14,7 +14,7 @@ struct ReaderView: View {
     @State private var offset: CGSize = .zero
 
     var body: some View {
-        GeometryReader { geometry in
+        GeometryReader { _ in
             ZStack {
                 Color.black
                     .ignoresSafeArea()
@@ -22,30 +22,61 @@ struct ReaderView: View {
                 if viewModel.shouldShowDoublePages {
                     // 見開きモード（2ページ表示）
                     HStack(spacing: 0) {
-                        if let image = viewModel.currentImage {
-                            Image(nsImage: image)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .scaleEffect(currentZoom)
-                                .offset(offset)
-                                .gesture(magnificationGesture)
-                                .gesture(dragGesture)
-                                .onTapGesture(count: 2) {
-                                    resetZoom()
-                                }
-                        }
+                        // 右綴じの場合、ページ順序を反転
+                        if viewModel.readingSettings.readingDirection.isRightToLeft {
+                            // 右綴じ：右ページ（secondImage）→左ページ（currentImage）
+                            if let secondImage = viewModel.secondImage {
+                                Image(nsImage: secondImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .scaleEffect(currentZoom)
+                                    .offset(offset)
+                                    .gesture(magnificationGesture)
+                                    .gesture(dragGesture)
+                                    .onTapGesture(count: 2) {
+                                        resetZoom()
+                                    }
+                            }
 
-                        if let secondImage = viewModel.secondImage {
-                            Image(nsImage: secondImage)
-                                .resizable()
-                                .aspectRatio(contentMode: .fit)
-                                .scaleEffect(currentZoom)
-                                .offset(offset)
-                                .gesture(magnificationGesture)
-                                .gesture(dragGesture)
-                                .onTapGesture(count: 2) {
-                                    resetZoom()
-                                }
+                            if let image = viewModel.currentImage {
+                                Image(nsImage: image)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .scaleEffect(currentZoom)
+                                    .offset(offset)
+                                    .gesture(magnificationGesture)
+                                    .gesture(dragGesture)
+                                    .onTapGesture(count: 2) {
+                                        resetZoom()
+                                    }
+                            }
+                        } else {
+                            // 左綴じ：左ページ（currentImage）→右ページ（secondImage）
+                            if let image = viewModel.currentImage {
+                                Image(nsImage: image)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .scaleEffect(currentZoom)
+                                    .offset(offset)
+                                    .gesture(magnificationGesture)
+                                    .gesture(dragGesture)
+                                    .onTapGesture(count: 2) {
+                                        resetZoom()
+                                    }
+                            }
+
+                            if let secondImage = viewModel.secondImage {
+                                Image(nsImage: secondImage)
+                                    .resizable()
+                                    .aspectRatio(contentMode: .fit)
+                                    .scaleEffect(currentZoom)
+                                    .offset(offset)
+                                    .gesture(magnificationGesture)
+                                    .gesture(dragGesture)
+                                    .onTapGesture(count: 2) {
+                                        resetZoom()
+                                    }
+                            }
                         }
                     }
                 } else if let image = viewModel.currentImage {
@@ -139,6 +170,15 @@ struct ReaderView: View {
                                     .font(.caption)
                                     .foregroundColor(.white)
                             }
+
+                            // 綴じ方向表示インジケーター
+                            Text(viewModel.readingSettings.readingDirection.isRightToLeft ? "右綴じ" : "左綴じ")
+                                .font(.caption2)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1)
+                                .background(Color.blue.opacity(0.3))
+                                .cornerRadius(3)
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
@@ -201,12 +241,26 @@ struct ReaderView: View {
     private func handleKeyPress(_ keyPress: KeyPress) {
         switch keyPress.key {
         case .rightArrow, .space:
-            viewModel.nextPage()
+            if viewModel.readingSettings.readingDirection.isRightToLeft {
+                // 右綴じ：右矢印は戻る
+                viewModel.previousPage()
+            } else {
+                // 左綴じ：右矢印は進む
+                viewModel.nextPage()
+            }
         case .leftArrow:
-            viewModel.previousPage()
+            if viewModel.readingSettings.readingDirection.isRightToLeft {
+                // 右綴じ：左矢印は進む
+                viewModel.nextPage()
+            } else {
+                // 左綴じ：左矢印は戻る
+                viewModel.previousPage()
+            }
         case .init(.init("d")), .init(.init("D")):
             viewModel.toggleDoublePageMode()
             resetZoom()
+        case .init(.init("r")), .init(.init("R")):
+            viewModel.toggleReadingDirection()
         default:
             break
         }

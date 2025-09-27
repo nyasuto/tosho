@@ -26,6 +26,8 @@ opt_in_rules:
   - operator_usage_whitespace
   - redundant_nil_coalescing
   - sorted_first_last
+
+analyzer_rules:
   - unused_import
 
 # Custom rule configurations
