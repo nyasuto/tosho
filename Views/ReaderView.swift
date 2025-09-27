@@ -110,6 +110,11 @@ struct ReaderView: View {
             .onHover { hovering in
                 viewModel.showControls = hovering
             }
+            .focusable(true)
+            .onKeyPress { keyPress in
+                handleKeyPress(keyPress)
+                return .handled
+            }
         }
     }
 
@@ -143,6 +148,17 @@ struct ReaderView: View {
         withAnimation(.easeInOut(duration: 0.3)) {
             currentZoom = 1.0
             offset = .zero
+        }
+    }
+
+    private func handleKeyPress(_ keyPress: KeyPress) {
+        switch keyPress.key {
+        case .rightArrow, .space:
+            viewModel.nextPage()
+        case .leftArrow:
+            viewModel.previousPage()
+        default:
+            break
         }
     }
 
