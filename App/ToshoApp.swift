@@ -10,6 +10,7 @@ import SwiftUI
 @main
 struct ToshoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @StateObject private var recentFilesManager = RecentFilesManager.shared
 
     var body: some Scene {
         WindowGroup {
@@ -25,6 +26,29 @@ struct ToshoApp: App {
                     openFileOrFolder()
                 }
                 .keyboardShortcut("O", modifiers: .command)
+
+                Divider()
+
+                Button("Recent Files...") {
+                    showRecentFiles()
+                }
+                .keyboardShortcut("H", modifiers: [.command, .shift])
+
+                if !recentFilesManager.recentFiles.isEmpty {
+                    Divider()
+
+                    ForEach(recentFilesManager.recentFiles.prefix(10)) { item in
+                        Button(item.fileName) {
+                            openRecentFile(item.url)
+                        }
+                    }
+
+                    Divider()
+
+                    Button("Clear Recent Files") {
+                        recentFilesManager.clearAllRecentFiles()
+                    }
+                }
             }
 
             // View Menu Commands
@@ -68,31 +92,46 @@ struct ToshoApp: App {
 
         if panel.runModal() == .OK {
             if let url = panel.url {
-                // 選択されたURLの種類を自動判別
-                var isDirectory: ObjCBool = false
-                let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+                openAndAddToRecent(url)
+            }
+        }
+    }
 
-                if exists {
-                    if isDirectory.boolValue {
-                        // ディレクトリの場合
-                        NotificationCenter.default.post(name: .openFolder, object: url)
-                    } else {
-                        // ファイルの場合、拡張子でさらに判別
-                        let fileExtension = url.pathExtension.lowercased()
-                        if fileExtension == "zip" || fileExtension == "cbz" {
-                            // アーカイブファイル
-                            NotificationCenter.default.post(name: .openFile, object: url)
-                        } else if ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif", "avif"].contains(fileExtension) {
-                            // 画像ファイル
-                            NotificationCenter.default.post(name: .openFile, object: url)
-                        } else {
-                            // その他のファイル（とりあえずファイルとして処理）
-                            NotificationCenter.default.post(name: .openFile, object: url)
-                        }
-                    }
+    private func openAndAddToRecent(_ url: URL) {
+        // 選択されたURLの種類を自動判別
+        var isDirectory: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+
+        if exists {
+            // Recent filesに追加
+            recentFilesManager.addRecentFile(url)
+
+            if isDirectory.boolValue {
+                // ディレクトリの場合
+                NotificationCenter.default.post(name: .openFolder, object: url)
+            } else {
+                // ファイルの場合、拡張子でさらに判別
+                let fileExtension = url.pathExtension.lowercased()
+                if fileExtension == "zip" || fileExtension == "cbz" {
+                    // アーカイブファイル
+                    NotificationCenter.default.post(name: .openFile, object: url)
+                } else if ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif", "avif"].contains(fileExtension) {
+                    // 画像ファイル
+                    NotificationCenter.default.post(name: .openFile, object: url)
+                } else {
+                    // その他のファイル（とりあえずファイルとして処理）
+                    NotificationCenter.default.post(name: .openFile, object: url)
                 }
             }
         }
+    }
+
+    private func openRecentFile(_ url: URL) {
+        openAndAddToRecent(url)
+    }
+
+    private func showRecentFiles() {
+        NotificationCenter.default.post(name: .showRecentFiles, object: nil)
     }
 }
 
@@ -119,6 +158,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 extension Notification.Name {
     static let openFile = Notification.Name("tosho.openFile")
     static let openFolder = Notification.Name("tosho.openFolder")
+    static let showRecentFiles = Notification.Name("tosho.showRecentFiles")
     static let nextPage = Notification.Name("tosho.nextPage")
     static let previousPage = Notification.Name("tosho.previousPage")
     static let toggleDoublePage = Notification.Name("tosho.toggleDoublePage")
