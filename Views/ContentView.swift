@@ -14,6 +14,7 @@ struct ContentView: View {
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingRecentFiles = false
+    @State private var showingFavorites = false
 
     var body: some View {
         ZStack {
@@ -52,6 +53,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showingRecentFiles) {
             RecentFilesView()
+        }
+        .sheet(isPresented: $showingFavorites) {
+            FavoritesView()
         }
     }
 
@@ -100,6 +104,22 @@ struct ContentView: View {
             if let url = notification.object as? URL {
                 selectedFileURL = url
             }
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: .showFavorites,
+            object: nil,
+            queue: .main
+        ) { _ in
+            showingFavorites = true
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: .closeFavorites,
+            object: nil,
+            queue: .main
+        ) { _ in
+            showingFavorites = false
         }
     }
 
