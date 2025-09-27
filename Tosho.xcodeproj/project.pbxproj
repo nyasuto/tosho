@@ -22,6 +22,7 @@
 		D0000008A1000001000000AA /* ReaderViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderViewModel.swift; sourceTree = "<group>"; };
 		D000000AA1000001000000AA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D000000CA1000001000000AA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D000000EA1000001000000AB /* Tosho.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tosho.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -69,6 +70,7 @@
 			children = (
 				D0000002A1000001000000AA /* ToshoApp.swift */,
 				D000000CA1000001000000AA /* Info.plist */,
+				D000000EA1000001000000AB /* Tosho.entitlements */,
 			);
 			path = App;
 			sourceTree = "<group>";
