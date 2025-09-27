@@ -72,7 +72,7 @@ class ReaderViewModel: ObservableObject {
     }
 
     private func loadImageAtIndex(_ index: Int) {
-        guard _ = document, index >= 0 && index < totalPages else {
+        guard let _ = document, index >= 0 && index < totalPages else {
             DispatchQueue.main.async {
                 self.isLoading = false
             }
