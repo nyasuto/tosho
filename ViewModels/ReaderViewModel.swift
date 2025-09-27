@@ -18,9 +18,8 @@ class ReaderViewModel: ObservableObject {
     @Published var isDoublePageMode: Bool = false
 
     private var imageCache: [Int: NSImage] = [:]
-    private var fileURLs: [URL] = []
-    private let fileLoader = FileLoader()
-    private let cacheSize = 5 // Keep 5 images around current index
+    private var document: ToshoDocument?
+    private let cacheSize = 5
 
     var hasNextPage: Bool {
         currentPageIndex < totalPages - 1
@@ -35,58 +34,33 @@ class ReaderViewModel: ObservableObject {
         errorMessage = nil
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            if url.hasDirectoryPath {
-                self?.loadFolder(url)
-            } else {
-                self?.loadSingleFile(url)
-            }
-        }
-    }
+            do {
+                let document = ToshoDocument()
+                try document.loadContent(from: url)
 
-    private func loadFolder(_ folderURL: URL) {
-        do {
-            let urls = try fileLoader.loadImagesFromFolder(folderURL)
-            guard !urls.isEmpty else {
                 DispatchQueue.main.async {
-                    self.errorMessage = "No image files found in folder"
-                    self.isLoading = false
+                    self?.document = document
+                    self?.totalPages = document.totalPages
+                    self?.currentPageIndex = 0
+                    self?.loadImageAtIndex(0)
                 }
-                return
-            }
-
-            self.fileURLs = urls
-            self.totalPages = urls.count
-            self.loadImageAtIndex(0)
-        } catch {
-            DispatchQueue.main.async {
-                self.errorMessage = error.localizedDescription
-                self.isLoading = false
+            } catch {
+                DispatchQueue.main.async {
+                    self?.errorMessage = error.localizedDescription
+                    self?.isLoading = false
+                }
             }
         }
     }
 
-    private func loadSingleFile(_ fileURL: URL) {
-        guard let image = NSImage(contentsOf: fileURL) else {
+    private func loadImageAtIndex(_ index: Int) {
+        guard let document = document, index >= 0 && index < totalPages else {
             DispatchQueue.main.async {
-                self.errorMessage = "Unable to load image"
                 self.isLoading = false
             }
             return
         }
 
-        DispatchQueue.main.async {
-            self.imageCache[0] = image
-            self.currentImage = image
-            self.totalPages = 1
-            self.currentPageIndex = 0
-            self.isLoading = false
-        }
-    }
-
-    private func loadImageAtIndex(_ index: Int) {
-        guard index >= 0 && index < fileURLs.count else { return }
-
-        // Check if image is already cached
         if let cachedImage = imageCache[index] {
             DispatchQueue.main.async {
                 self.currentImage = cachedImage
@@ -97,44 +71,52 @@ class ReaderViewModel: ObservableObject {
             return
         }
 
-        // Load image asynchronously
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-
-            let url = self.fileURLs[index]
-            guard let image = NSImage(contentsOf: url) else {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Unable to load image at index \(index)"
-                    self.isLoading = false
+            do {
+                guard let image = try document.getImage(at: index) else {
+                    DispatchQueue.main.async {
+                        self?.errorMessage = "Unable to load image at index \(index)"
+                        self?.isLoading = false
+                    }
+                    return
                 }
-                return
-            }
 
-            DispatchQueue.main.async {
-                self.imageCache[index] = image
-                self.currentImage = image
-                self.currentPageIndex = index
-                self.isLoading = false
-                self.cleanCache()
-            }
+                DispatchQueue.main.async {
+                    self?.imageCache[index] = image
+                    self?.currentImage = image
+                    self?.currentPageIndex = index
+                    self?.isLoading = false
+                    self?.cleanCache()
+                }
 
-            self.preloadNearbyImages(around: index)
+                self?.preloadNearbyImages(around: index)
+            } catch {
+                DispatchQueue.main.async {
+                    self?.errorMessage = error.localizedDescription
+                    self?.isLoading = false
+                }
+            }
         }
     }
 
     private func preloadNearbyImages(around centerIndex: Int) {
+        guard let document = document else { return }
+
         DispatchQueue.global(qos: .background).async { [weak self] in
             guard let self = self else { return }
 
-            let range = max(0, centerIndex - self.cacheSize/2)...min(self.fileURLs.count - 1, centerIndex + self.cacheSize/2)
+            let range = max(0, centerIndex - self.cacheSize/2)...min(self.totalPages - 1, centerIndex + self.cacheSize/2)
 
             for i in range {
                 if self.imageCache[i] == nil {
-                    let url = self.fileURLs[i]
-                    if let image = NSImage(contentsOf: url) {
-                        DispatchQueue.main.async {
-                            self.imageCache[i] = image
+                    do {
+                        if let image = try document.getImage(at: i) {
+                            DispatchQueue.main.async {
+                                self.imageCache[i] = image
+                            }
                         }
+                    } catch {
+                        continue
                     }
                 }
             }
@@ -157,15 +139,8 @@ class ReaderViewModel: ObservableObject {
         let step = isDoublePageMode ? 2 : 1
         let newIndex = min(currentPageIndex + step, totalPages - 1)
 
-        if fileURLs.isEmpty {
-            // Single image mode
-            currentPageIndex = newIndex
-            updateCurrentImage()
-        } else {
-            // Folder mode - load image at new index
-            isLoading = true
-            loadImageAtIndex(newIndex)
-        }
+        isLoading = true
+        loadImageAtIndex(newIndex)
     }
 
     func previousPage() {
@@ -174,33 +149,13 @@ class ReaderViewModel: ObservableObject {
         let step = isDoublePageMode ? 2 : 1
         let newIndex = max(currentPageIndex - step, 0)
 
-        if fileURLs.isEmpty {
-            // Single image mode
-            currentPageIndex = newIndex
-            updateCurrentImage()
-        } else {
-            // Folder mode - load image at new index
-            isLoading = true
-            loadImageAtIndex(newIndex)
-        }
+        isLoading = true
+        loadImageAtIndex(newIndex)
     }
 
     func toggleDoublePageMode() {
         isDoublePageMode.toggle()
-        updateCurrentImage()
-    }
-
-    private func updateCurrentImage() {
-        if let cachedImage = imageCache[currentPageIndex] {
-            currentImage = cachedImage
-        } else if fileURLs.isEmpty && totalPages == 1 {
-            // Single image mode - image should already be set
-            return
-        } else {
-            // Need to load image
-            isLoading = true
-            loadImageAtIndex(currentPageIndex)
-        }
+        loadImageAtIndex(currentPageIndex)
     }
 }
 

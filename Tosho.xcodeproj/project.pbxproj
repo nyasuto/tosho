@@ -12,6 +12,8 @@
 		D0000005A1000001000000AA /* ReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0000006A1000001000000AA /* ReaderView.swift */; };
 		D0000007A1000001000000AA /* ReaderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0000008A1000001000000AA /* ReaderViewModel.swift */; };
 		D0000009A1000001000000AA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D000000AA1000001000000AA /* Assets.xcassets */; };
+		AE5F3155A07FC84B49909FBUILD /* ArchiveExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4C3DC8F29A8947FEBD80 /* ArchiveExtractor.swift */; };
+		TD647232D17360463790FABUILD /* ToshoDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = TD1CCDBAE5544641D29995 /* ToshoDocument.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +25,8 @@
 		D000000BA1000001000000AA /* Tosho.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tosho.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D000000CA1000001000000AA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D000000EA1000001000000AB /* Tosho.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tosho.entitlements; sourceTree = "<group>"; };
+		AE4C3DC8F29A8947FEBD80 /* ArchiveExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArchiveExtractor.swift; sourceTree = "<group>"; };
+		TD1CCDBAE5544641D29995 /* ToshoDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToshoDocument.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +99,7 @@
 		D0000014A1000001000000AA /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				TD1CCDBAE5544641D29995 /* ToshoDocument.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -102,6 +107,7 @@
 		D0000015A1000001000000AA /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				AE4C3DC8F29A8947FEBD80 /* ArchiveExtractor.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -193,6 +199,8 @@
 				D0000003A1000001000000AA /* ContentView.swift in Sources */,
 				D0000005A1000001000000AA /* ReaderView.swift in Sources */,
 				D0000007A1000001000000AA /* ReaderViewModel.swift in Sources */,
+				AE5F3155A07FC84B49909FBUILD /* ArchiveExtractor.swift in Sources */,
+				TD647232D17360463790FABUILD /* ToshoDocument.swift in Sources */,
 				D0000001A1000001000000AA /* ToshoApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
