@@ -10,6 +10,17 @@ import AppKit
 import UserNotifications
 import os.log
 
+/// セキュリティスコープのアクセス権限を安全に管理するヘルパー関数
+func withSecurityScope<T>(_ url: URL, _ work: () throws -> T) rethrows -> T {
+    let ok = url.startAccessingSecurityScopedResource()
+    defer {
+        if ok {
+            url.stopAccessingSecurityScopedResource()
+        }
+    }
+    return try work()
+}
+
 class ArchiveExtractor {
     private let supportedImageExtensions = ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif", "avif"]
     private let tempDirectory: URL
@@ -48,50 +59,75 @@ class ArchiveExtractor {
         }
 
         let imageName = imageList[index]
+        let archiveLog = Logger(subsystem: "com.tosho.app", category: "archive")
+
         DebugLogger.shared.logArchiveOperation("Extracting image",
                                                file: archiveURL.lastPathComponent,
                                                details: "Image: \(imageName) (index \(index))")
+        archiveLog.info("🗜️ Extracting image with Archive framework: \(imageName, privacy: .public)")
 
-        // Try memory-based extraction first
+        // Try memory-based extraction first with ZipExtractor
         if ZipExtractor.isSupported(archiveURL) {
             do {
                 let image = try ZipExtractor.image(forMember: imageName, inArchive: archiveURL)
                 DebugLogger.shared.logArchiveOperation("Memory extraction successful",
                                                        file: archiveURL.lastPathComponent,
                                                        details: "Image: \(imageName)")
+                archiveLog.info("✅ ZipExtractor memory extraction successful for: \(imageName, privacy: .public)")
                 return image
             } catch {
-                DebugLogger.shared.logArchiveOperation("Memory extraction failed, falling back to disk",
+                DebugLogger.shared.logArchiveOperation("Memory extraction failed, falling back to Archive framework",
                                                        file: archiveURL.lastPathComponent,
                                                        details: "Error: \(error.localizedDescription)")
-                // Continue to disk-based fallback below
+                archiveLog.info("⚠️ ZipExtractor failed, falling back to Archive framework")
             }
         }
 
-        // Fallback to disk-based extraction
-        DebugLogger.shared.logArchiveOperation("Using disk-based extraction",
-                                               file: archiveURL.lastPathComponent,
-                                               details: "Image: \(imageName)")
-        let tempImageURL = tempDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("temp")
+        // Fallback to disk-based extraction with security scope
+        return try withSecurityScope(archiveURL) {
+            archiveLog.info("🔓 Security scope started for disk-based extraction")
+            DebugLogger.shared.logArchiveOperation("Using disk-based extraction",
+                                                   file: archiveURL.lastPathComponent,
+                                                   details: "Image: \(imageName)")
 
-        try extractSpecificFile(fileName: imageName, from: archiveURL, to: tempImageURL)
+            let tempImageURL = tempDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("temp")
 
-        guard let image = NSImage(contentsOf: tempImageURL) else {
+            // セキュリティスコープ内でファイル抽出実行
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+            process.arguments = ["-o", "-q", archiveURL.path, imageName, "-d", tempImageURL.deletingLastPathComponent().path]
+
+            archiveLog.info("🚀 Executing unzip extraction with security scope")
+
+            try process.run()
+            process.waitUntilExit()
+
+            guard process.terminationStatus == 0 else {
+                archiveLog.error("❌ Unzip extraction failed with exit code: \(process.terminationStatus)")
+                throw ArchiveError.extractionFailed
+            }
+
+            let extractedFileURL = tempImageURL.deletingLastPathComponent().appendingPathComponent(imageName)
+            if FileManager.default.fileExists(atPath: extractedFileURL.path) {
+                try FileManager.default.moveItem(at: extractedFileURL, to: tempImageURL)
+            }
+
+            guard let image = NSImage(contentsOf: tempImageURL) else {
+                try? FileManager.default.removeItem(at: tempImageURL)
+                throw ArchiveError.imageLoadFailed
+            }
+
             try? FileManager.default.removeItem(at: tempImageURL)
-            throw ArchiveError.imageLoadFailed
+            archiveLog.info("✅ Successfully extracted and loaded image")
+            return image
         }
-
-        try? FileManager.default.removeItem(at: tempImageURL)
-        return image
     }
 
     func getImageList(from archiveURL: URL) throws -> [String] {
         let unzipLog = Logger(subsystem: "com.tosho.app", category: "unzip")
 
         DebugLogger.shared.logArchiveOperation("Getting image list", file: archiveURL.lastPathComponent)
-        unzipLog.info("📋 Starting getImageList for: \(archiveURL.lastPathComponent, privacy: .public)")
-        unzipLog.info("🔍 Archive URL path: \(archiveURL.path, privacy: .public)")
-        unzipLog.info("🔍 Archive URL exists: \(FileManager.default.fileExists(atPath: archiveURL.path))")
+        unzipLog.info("📋 Starting getImageList with security scoped unzip for: \(archiveURL.lastPathComponent, privacy: .public)")
 
         guard isArchiveFile(archiveURL) else {
             unzipLog.error("❌ Unsupported archive format: \(archiveURL.lastPathComponent, privacy: .public)")
@@ -99,61 +135,55 @@ class ArchiveExtractor {
             throw ArchiveError.unsupportedFormat
         }
 
-        unzipLog.info("🚀 Executing unzip command via FileHandle: /usr/bin/unzip -l")
+        return try withSecurityScope(archiveURL) {
+            unzipLog.info("🔓 Security scope started for unzip access")
+            unzipLog.info("🔍 Archive URL path: \(archiveURL.path, privacy: .public)")
+            unzipLog.info("🔍 Archive URL exists: \(FileManager.default.fileExists(atPath: archiveURL.path))")
 
-        // セキュリティスコープを継承するためFileHandleアプローチを使用
-        let fileHandle = try FileHandle(forReadingFrom: archiveURL)
-        let fd = fileHandle.fileDescriptor
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+            process.arguments = ["-l", archiveURL.path]
 
-        unzipLog.info("📁 Opened file handle for archive, fd: \(fd)")
+            let pipe = Pipe()
+            let errorPipe = Pipe()
+            process.standardOutput = pipe
+            process.standardError = errorPipe
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        process.arguments = ["-l", "/dev/fd/\(fd)"]
+            unzipLog.info("🚀 Executing unzip -l with security scope")
 
-        let pipe = Pipe()
-        let errorPipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = errorPipe
+            try process.run()
+            process.waitUntilExit()
 
-        // FileHandleはプロセス起動時に自動継承される
-        unzipLog.info("🔧 FileHandle will be inherited by child process")
+            // 標準エラー出力を取得
+            let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+            if let errorOutput = String(data: errorData, encoding: .utf8), !errorOutput.isEmpty {
+                unzipLog.error("📢 Unzip stderr: \(errorOutput, privacy: .public)")
+            }
 
-        try process.run()
-        process.waitUntilExit()
+            unzipLog.info("📊 Unzip process completed with exit code: \(process.terminationStatus)")
 
-        // FileHandleを閉じる
-        try fileHandle.close()
-        unzipLog.info("📁 Closed file handle")
+            guard process.terminationStatus == 0 else {
+                unzipLog.error("❌ Unzip list failed for: \(archiveURL.lastPathComponent, privacy: .public) with exit code: \(process.terminationStatus)")
+                DebugLogger.shared.logArchiveOperation("Unzip list failed",
+                                                       file: archiveURL.lastPathComponent,
+                                                       details: "Exit code: \(process.terminationStatus)")
+                throw ArchiveError.extractionFailed
+            }
 
-        // 標準エラー出力を取得
-        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-        if let errorOutput = String(data: errorData, encoding: .utf8), !errorOutput.isEmpty {
-            unzipLog.error("📢 Unzip stderr: \(errorOutput, privacy: .public)")
-        }
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else {
+                DebugLogger.shared.logArchiveOperation("Failed to decode unzip output", file: archiveURL.lastPathComponent)
+                throw ArchiveError.invalidArchive
+            }
 
-        unzipLog.info("📊 Unzip process completed with exit code: \(process.terminationStatus)")
-
-        guard process.terminationStatus == 0 else {
-            unzipLog.error("❌ Unzip list failed for: \(archiveURL.lastPathComponent, privacy: .public) with exit code: \(process.terminationStatus)")
-            DebugLogger.shared.logArchiveOperation("Unzip list failed",
+            DebugLogger.shared.logArchiveOperation("Successfully listed archive contents",
                                                    file: archiveURL.lastPathComponent,
-                                                   details: "Exit code: \(process.terminationStatus)")
-            throw ArchiveError.extractionFailed
+                                                   details: "Output length: \(output.count)")
+            let imageFiles = parseImageFilesFromUnzipList(output)
+            DebugLogger.shared.logArchiveOperation("Found \(imageFiles.count) image files", file: archiveURL.lastPathComponent)
+            unzipLog.info("✅ Successfully found \(imageFiles.count) image files")
+            return imageFiles
         }
-
-        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-        guard let output = String(data: data, encoding: .utf8) else {
-            DebugLogger.shared.logArchiveOperation("Failed to decode unzip output", file: archiveURL.lastPathComponent)
-            throw ArchiveError.invalidArchive
-        }
-
-        DebugLogger.shared.logArchiveOperation("Successfully listed archive contents",
-                                               file: archiveURL.lastPathComponent,
-                                               details: "Output length: \(output.count)")
-        let imageFiles = parseImageFilesFromUnzipList(output)
-        DebugLogger.shared.logArchiveOperation("Found \(imageFiles.count) image files", file: archiveURL.lastPathComponent)
-        return imageFiles
     }
 
     private func isArchiveFile(_ url: URL) -> Bool {
@@ -171,43 +201,6 @@ class ArchiveExtractor {
 
         guard process.terminationStatus == 0 else {
             throw ArchiveError.extractionFailed
-        }
-    }
-
-    private func extractSpecificFile(fileName: String, from archiveURL: URL, to destinationURL: URL) throws {
-        let unzipLog = Logger(subsystem: "com.tosho.app", category: "unzip")
-
-        unzipLog.info("🗜️ Extracting specific file: \(fileName, privacy: .public) from \(archiveURL.lastPathComponent, privacy: .public)")
-
-        // セキュリティスコープを継承するためFileHandleアプローチを使用
-        let fileHandle = try FileHandle(forReadingFrom: archiveURL)
-        let fd = fileHandle.fileDescriptor
-
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        process.arguments = ["-o", "-q", "/dev/fd/\(fd)", fileName, "-d", destinationURL.deletingLastPathComponent().path]
-
-        unzipLog.info("🚀 Executing extraction: unzip -o -q /dev/fd/\(fd) \(fileName, privacy: .public)")
-
-        try process.run()
-        process.waitUntilExit()
-
-        // FileHandleを閉じる
-        try fileHandle.close()
-
-        unzipLog.info("📊 Extraction completed with exit code: \(process.terminationStatus)")
-
-        guard process.terminationStatus == 0 else {
-            unzipLog.error("❌ Extraction failed with exit code: \(process.terminationStatus)")
-            throw ArchiveError.extractionFailed
-        }
-
-        let extractedFileURL = destinationURL.deletingLastPathComponent().appendingPathComponent(fileName)
-        if FileManager.default.fileExists(atPath: extractedFileURL.path) {
-            try FileManager.default.moveItem(at: extractedFileURL, to: destinationURL)
-            unzipLog.info("✅ Successfully moved extracted file to destination")
-        } else {
-            unzipLog.error("❌ Extracted file not found at expected location")
         }
     }
 
