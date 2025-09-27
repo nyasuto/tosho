@@ -134,7 +134,17 @@ struct FavoritesView: View {
     }
 
     private func openFile(_ url: URL) {
-        NotificationCenter.default.post(name: .openFile, object: url)
+        // 履歴と同じセキュリティスコープ処理を使用
+        FavoritesManager.shared.openFileFromHistory(url) { securityScopedURL in
+            guard let fileURL = securityScopedURL else { 
+                DebugLogger.shared.log("Failed to get security scoped URL for: \(url.lastPathComponent)", category: "FavoritesView")
+                return 
+            }
+            DispatchQueue.main.async {
+                // 直接AppDelegateに通知（履歴と同じフロー）
+                NotificationCenter.default.post(name: .openFileInNewWindow, object: fileURL)
+            }
+        }
     }
 
     private func toggleFavorite(_ item: FileHistoryItem) {
