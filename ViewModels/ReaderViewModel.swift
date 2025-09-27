@@ -39,7 +39,7 @@ class ReaderViewModel: ObservableObject {
     private var thumbnailCache: [Int: NSImage] = [:]
     private var document: ToshoDocument?
     private let cacheSize = 5
-    private let thumbnailSize = CGSize(width: 150, height: 200)
+    private let thumbnailSize = CGSize(width: 120, height: 180)
 
     var hasNextPage: Bool {
         if isDoublePageMode {

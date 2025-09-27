@@ -573,7 +573,7 @@ struct ThumbnailGalleryView: View {
     @Environment(\.presentationMode) var presentationMode
 
     private let columns = [
-        GridItem(.adaptive(minimum: 150, maximum: 200), spacing: 12)
+        GridItem(.adaptive(minimum: 120, maximum: 160), spacing: 16)
     ]
 
     var body: some View {
@@ -640,13 +640,14 @@ struct ThumbnailCard: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.gray.opacity(0.2))
-                    .frame(height: 200)
+                    .frame(width: 120, height: 180)
 
                 if let thumbnail = thumbnail {
                     Image(nsImage: thumbnail)
                         .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(maxHeight: 200)
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 120, height: 180)
+                        .clipped()
                         .cornerRadius(8)
                 } else {
                     VStack {
