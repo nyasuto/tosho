@@ -374,16 +374,17 @@ struct FileHistoryItem: Codable, Identifiable {
     }
 
     // セキュリティスコープのアクセス権限を取得
-    func getSecurityScopedURL() -> URL? {
+    mutating func getSecurityScopedURL() -> URL? {
         let bookmarkLog = Logger(subsystem: "com.tosho.app", category: "bookmark")
+        let fileName = self.fileName // ローカルコピー
 
         guard let bookmarkData = self.bookmarkData else {
-            bookmarkLog.info("No bookmark data available for: \(self.fileName, privacy: .public)")
+            bookmarkLog.info("No bookmark data available for: \(fileName, privacy: .public)")
             DebugLogger.shared.log("No bookmark data available for: \(fileName)", category: "FileHistoryItem")
             return nil
         }
 
-        bookmarkLog.info("Attempting to resolve bookmark for: \(self.fileName, privacy: .public), data size: \(bookmarkData.count) bytes")
+        bookmarkLog.info("Attempting to resolve bookmark for: \(fileName, privacy: .public), data size: \(bookmarkData.count) bytes")
 
         do {
             var isStale = false
@@ -395,55 +396,112 @@ struct FileHistoryItem: Codable, Identifiable {
             )
 
             if isStale {
-                bookmarkLog.warning("Bookmark data is stale for: \(self.fileName, privacy: .public)")
+                bookmarkLog.warning("Bookmark data is stale for: \(fileName, privacy: .public)")
                 DebugLogger.shared.log("Bookmark data is stale for: \(fileName)", category: "FileHistoryItem")
-                return nil
+
+                // ファイルが存在するかチェック
+                if FileManager.default.fileExists(atPath: url.path) {
+                    bookmarkLog.info("File still exists, attempting to create fresh bookmark for: \(fileName, privacy: .public)")
+                    DebugLogger.shared.log("File still exists, attempting to create fresh bookmark for: \(fileName)", category: "FileHistoryItem")
+
+                    // 新しいブックマークを作成
+                    do {
+                        let freshBookmarkData = try url.bookmarkData(
+                            options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+                            includingResourceValuesForKeys: nil,
+                            relativeTo: nil
+                        )
+                        // 新しいブックマークデータを保存
+                        self.bookmarkData = freshBookmarkData
+                        bookmarkLog.info("Successfully created fresh bookmark for: \(fileName, privacy: .public)")
+                        DebugLogger.shared.log("Successfully created fresh bookmark for: \(fileName)", category: "FileHistoryItem")
+                        return url
+                    } catch {
+                        bookmarkLog.error("Failed to create fresh bookmark for: \(fileName, privacy: .public) - \(error.localizedDescription, privacy: .public)")
+                        DebugLogger.shared.logError(error, context: "Failed to create fresh bookmark for: \(fileName)")
+                        // フレッシュブックマーク作成に失敗した場合はnilを返す
+                        // これによりopenFileFromHistoryでフォールバック処理が実行される
+                        return nil
+                    }
+                } else {
+                    bookmarkLog.error("File no longer exists at: \(url.path, privacy: .public)")
+                    DebugLogger.shared.log("File no longer exists at: \(url.path)", category: "FileHistoryItem")
+                    return nil
+                }
             }
 
-            bookmarkLog.info("Successfully resolved security scoped URL for: \(self.fileName, privacy: .public) -> \(url.path, privacy: .public)")
+            bookmarkLog.info("Successfully resolved security scoped URL for: \(fileName, privacy: .public) -> \(url.path, privacy: .public)")
             DebugLogger.shared.log("Successfully resolved security scoped URL for: \(fileName)", category: "FileHistoryItem")
             return url
         } catch {
-            bookmarkLog.error("Failed to resolve security scoped URL for: \(self.fileName, privacy: .public) - \(error.localizedDescription, privacy: .public)")
+            bookmarkLog.error("Failed to resolve security scoped URL for: \(fileName, privacy: .public) - \(error.localizedDescription, privacy: .public)")
             DebugLogger.shared.logError(error, context: "Failed to resolve security scoped URL for: \(fileName)")
             return nil
         }
     }
 
     // セキュリティスコープのアクセス権限を開始
-    func startAccessingSecurityScopedResource() -> Bool {
+    mutating func startAccessingSecurityScopedResource() -> Bool {
         let securityLog = Logger(subsystem: "com.tosho.app", category: "security")
+        let fileName = self.fileName // ローカルコピー
 
         guard let securityScopedURL = getSecurityScopedURL() else {
-            securityLog.error("Cannot get security scoped URL for: \(self.fileName, privacy: .public)")
+            securityLog.error("Cannot get security scoped URL for: \(fileName, privacy: .public)")
             return false
         }
 
-        securityLog.info("Attempting to start accessing security scoped resource: \(self.fileName, privacy: .public) at \(securityScopedURL.path, privacy: .public)")
+        securityLog.info("Attempting to start accessing security scoped resource: \(fileName, privacy: .public) at \(securityScopedURL.path, privacy: .public)")
 
         // ファイルが存在するかチェック
         let fileExists = FileManager.default.fileExists(atPath: securityScopedURL.path)
-        securityLog.info("File exists check for \(self.fileName, privacy: .public): \(fileExists)")
+        securityLog.info("File exists check for \(fileName, privacy: .public): \(fileExists)")
 
         let success = securityScopedURL.startAccessingSecurityScopedResource()
         if success {
-            securityLog.info("✅ Successfully started accessing security scoped resource: \(self.fileName, privacy: .public)")
+            securityLog.info("✅ Successfully started accessing security scoped resource: \(fileName, privacy: .public)")
             DebugLogger.shared.log("Started accessing security scoped resource: \(fileName)", category: "FileHistoryItem")
         } else {
-            securityLog.error("❌ Failed to start accessing security scoped resource: \(self.fileName, privacy: .public)")
+            securityLog.error("❌ Failed to start accessing security scoped resource: \(fileName, privacy: .public)")
             DebugLogger.shared.log("Failed to start accessing security scoped resource: \(fileName)", category: "FileHistoryItem")
         }
         return success
     }
 
     // セキュリティスコープのアクセス権限を終了
-    func stopAccessingSecurityScopedResource() {
+    mutating func stopAccessingSecurityScopedResource() {
+        let fileName = self.fileName // ローカルコピー
+
         guard let securityScopedURL = getSecurityScopedURL() else {
             return
         }
 
         securityScopedURL.stopAccessingSecurityScopedResource()
         DebugLogger.shared.log("Stopped accessing security scoped resource: \(fileName)", category: "FileHistoryItem")
+    }
+
+    // 古いアイテムのメタデータを保持して新しいURLで初期化
+    init(url: URL, preservingMetadataFrom oldItem: FileHistoryItem) {
+        self.id = UUID()
+        self.url = url
+        self.fileName = url.lastPathComponent
+        self.accessCount = oldItem.accessCount
+        self.firstAccessed = oldItem.firstAccessed
+        self.lastAccessed = Date() // 最新アクセス時刻に更新
+        self.isFavorite = oldItem.isFavorite
+        self.isAutoFavorite = oldItem.isAutoFavorite
+
+        // セキュリティスコープのブックマークデータを作成
+        do {
+            self.bookmarkData = try url.bookmarkData(
+                options: [.withSecurityScope, .securityScopeAllowOnlyReadAccess],
+                includingResourceValuesForKeys: nil,
+                relativeTo: nil
+            )
+            DebugLogger.shared.log("Created fresh bookmark for replaced item: \(url.lastPathComponent)", category: "FileHistoryItem")
+        } catch {
+            self.bookmarkData = nil
+            DebugLogger.shared.logError(error, context: "Failed to create bookmark for replaced item: \(url.lastPathComponent)")
+        }
     }
 }
 
@@ -523,11 +581,31 @@ class FavoritesManager: ObservableObject {
         saveFileHistory()
     }
 
+    // 履歴アイテムのURLを置換（ファイルが移動された場合など）
+    func replaceHistoryItem(oldURL: URL, newURL: URL) {
+        guard let index = fileHistory.firstIndex(where: { $0.url == oldURL }) else {
+            // 古いアイテムが見つからない場合は新しいアイテムを追加
+            recordFileAccess(newURL)
+            return
+        }
+
+        let oldItem = fileHistory[index]
+
+        // 新しいアイテムを作成（古いアイテムの統計情報を保持）
+        let newItem = FileHistoryItem(url: newURL, preservingMetadataFrom: oldItem)
+
+        // リストを更新
+        fileHistory[index] = newItem
+        saveFileHistory()
+
+        DebugLogger.shared.log("Replaced history item: \(oldURL.lastPathComponent) -> \(newURL.lastPathComponent)", category: "FavoritesManager")
+    }
+
     // 履歴からファイルを開く際にセキュリティスコープを処理
     func openFileFromHistory(_ url: URL, completion: @escaping (URL?) -> Void) {
         securityLog.info("🔍 Opening file from history: \(url.lastPathComponent, privacy: .public)")
 
-        guard let item = fileHistory.first(where: { $0.url == url }) else {
+        guard let index = fileHistory.firstIndex(where: { $0.url == url }) else {
             securityLog.error("❌ File not found in history: \(url.lastPathComponent, privacy: .public)")
             DebugLogger.shared.log("File not found in history: \(url.lastPathComponent)", category: "FavoritesManager")
             completion(nil)
@@ -537,7 +615,9 @@ class FavoritesManager: ObservableObject {
         securityLog.info("📚 Found item in history, attempting security scope access")
 
         // セキュリティスコープのアクセス権限を取得
-        if let securityScopedURL = item.getSecurityScopedURL() {
+        if let securityScopedURL = fileHistory[index].getSecurityScopedURL() {
+            // ブックマークが更新された可能性があるので保存
+            saveFileHistory()
             securityLog.info("🔐 Got security scoped URL, starting access...")
             if securityScopedURL.startAccessingSecurityScopedResource() {
                 securityLog.info("✅ Successfully started accessing security scoped resource for: \(url.lastPathComponent, privacy: .public)")
@@ -549,20 +629,63 @@ class FavoritesManager: ObservableObject {
                 completion(nil)
             }
         } else {
-            // セキュリティスコープが利用できない場合は元のURLを試す
-            securityLog.warning("⚠️ Security scope not available, trying original URL for: \(url.lastPathComponent, privacy: .public)")
-            DebugLogger.shared.log("Security scope not available, trying original URL for: \(url.lastPathComponent)", category: "FavoritesManager")
-            completion(url)
+            // セキュリティスコープが利用できない場合のフォールバック処理
+            securityLog.warning("⚠️ Security scope not available, trying fallback approaches for: \(url.lastPathComponent, privacy: .public)")
+            DebugLogger.shared.log("Security scope not available, trying fallback approaches for: \(url.lastPathComponent)", category: "FavoritesManager")
+
+            // 1. 元のURLがアクセス可能かチェック
+            if FileManager.default.fileExists(atPath: url.path) {
+                securityLog.info("Original URL is accessible, using it for: \(url.lastPathComponent, privacy: .public)")
+                DebugLogger.shared.log("Original URL is accessible, using it for: \(url.lastPathComponent)", category: "FavoritesManager")
+                completion(url)
+                return
+            }
+
+            // 2. ファイルピッカーで再選択を促す
+            securityLog.error("❌ File not accessible at original location: \(url.path, privacy: .public)")
+            DebugLogger.shared.log("File not accessible at original location: \(url.path)", category: "FavoritesManager")
+
+            DispatchQueue.main.async {
+                let alert = NSAlert()
+                alert.messageText = "ファイルにアクセスできません"
+                alert.informativeText = "「\(url.lastPathComponent)」にアクセスできません。ファイルを再選択してください。"
+                alert.addButton(withTitle: "再選択")
+                alert.addButton(withTitle: "キャンセル")
+                alert.alertStyle = .warning
+
+                let response = alert.runModal()
+                if response == .alertFirstButtonReturn {
+                    // ファイルピッカーを開く
+                    let panel = NSOpenPanel()
+                    panel.allowsMultipleSelection = false
+                    panel.canChooseDirectories = false
+                    panel.canChooseFiles = true
+                    panel.directoryURL = url.deletingLastPathComponent()
+
+                    if panel.runModal() == .OK, let newURL = panel.url {
+                        // 古いアイテムを削除して新しいアイテムを作成
+                        DispatchQueue.main.async {
+                            // FavoritesManagerの参照を取得してアイテムを更新
+                            FavoritesManager.shared.replaceHistoryItem(oldURL: url, newURL: newURL)
+                            completion(newURL)
+                        }
+                    } else {
+                        completion(nil)
+                    }
+                } else {
+                    completion(nil)
+                }
+            }
         }
     }
 
     // セキュリティスコープのアクセス権限を終了
     func stopAccessingFileFromHistory(_ url: URL) {
-        guard let item = fileHistory.first(where: { $0.url == url }) else {
+        guard let index = fileHistory.firstIndex(where: { $0.url == url }) else {
             return
         }
 
-        item.stopAccessingSecurityScopedResource()
+        fileHistory[index].stopAccessingSecurityScopedResource()
     }
 
     // MARK: - Private Methods

@@ -151,9 +151,10 @@ struct ContentView: View {
     }
 
     private func openInNewWindow(_ url: URL) {
-        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
-            appDelegate.openNewReaderWindow(with: url)
-        }
+        DebugLogger.shared.log("ContentView: Attempting to open file in new window: \(url.lastPathComponent)", category: "ContentView")
+
+        // NotificationCenterを通してファイルオープンを要求
+        NotificationCenter.default.post(name: .openFileInNewWindow, object: url)
     }
 }
 
