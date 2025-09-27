@@ -377,7 +377,7 @@ class RecentFilesManager: ObservableObject {
 
             // Add current recent files to system menu
             for item in self.recentFiles.prefix(10) { // Limit system menu to 10 items
-                NSDocumentController.shared.noteNewRecentDocument(at: item.url)
+                NSDocumentController.shared.noteNewRecentDocumentURL(item.url)
             }
         }
     }
