@@ -8,6 +8,7 @@
 import Foundation
 import AppKit
 import UserNotifications
+import os.log
 
 class ArchiveExtractor {
     private let supportedImageExtensions = ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif", "avif"]
@@ -85,24 +86,56 @@ class ArchiveExtractor {
     }
 
     func getImageList(from archiveURL: URL) throws -> [String] {
+        let unzipLog = Logger(subsystem: "com.tosho.app", category: "unzip")
+
         DebugLogger.shared.logArchiveOperation("Getting image list", file: archiveURL.lastPathComponent)
+        unzipLog.info("📋 Starting getImageList for: \(archiveURL.lastPathComponent, privacy: .public)")
+        unzipLog.info("🔍 Archive URL path: \(archiveURL.path, privacy: .public)")
+        unzipLog.info("🔍 Archive URL exists: \(FileManager.default.fileExists(atPath: archiveURL.path))")
 
         guard isArchiveFile(archiveURL) else {
+            unzipLog.error("❌ Unsupported archive format: \(archiveURL.lastPathComponent, privacy: .public)")
             DebugLogger.shared.logError(ArchiveError.unsupportedFormat, context: "File: \(archiveURL.lastPathComponent)")
             throw ArchiveError.unsupportedFormat
         }
 
+        unzipLog.info("🚀 Executing unzip command via FileHandle: /usr/bin/unzip -l")
+
+        // セキュリティスコープを継承するためFileHandleアプローチを使用
+        let fileHandle = try FileHandle(forReadingFrom: archiveURL)
+        let fd = fileHandle.fileDescriptor
+
+        unzipLog.info("📁 Opened file handle for archive, fd: \(fd)")
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        process.arguments = ["-l", archiveURL.path]
+        process.arguments = ["-l", "/dev/fd/\(fd)"]
 
         let pipe = Pipe()
+        let errorPipe = Pipe()
         process.standardOutput = pipe
+        process.standardError = errorPipe
+
+        // FileHandleはプロセス起動時に自動継承される
+        unzipLog.info("🔧 FileHandle will be inherited by child process")
 
         try process.run()
         process.waitUntilExit()
 
+        // FileHandleを閉じる
+        try fileHandle.close()
+        unzipLog.info("📁 Closed file handle")
+
+        // 標準エラー出力を取得
+        let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        if let errorOutput = String(data: errorData, encoding: .utf8), !errorOutput.isEmpty {
+            unzipLog.error("📢 Unzip stderr: \(errorOutput, privacy: .public)")
+        }
+
+        unzipLog.info("📊 Unzip process completed with exit code: \(process.terminationStatus)")
+
         guard process.terminationStatus == 0 else {
+            unzipLog.error("❌ Unzip list failed for: \(archiveURL.lastPathComponent, privacy: .public) with exit code: \(process.terminationStatus)")
             DebugLogger.shared.logArchiveOperation("Unzip list failed",
                                                    file: archiveURL.lastPathComponent,
                                                    details: "Exit code: \(process.terminationStatus)")
@@ -142,20 +175,39 @@ class ArchiveExtractor {
     }
 
     private func extractSpecificFile(fileName: String, from archiveURL: URL, to destinationURL: URL) throws {
+        let unzipLog = Logger(subsystem: "com.tosho.app", category: "unzip")
+
+        unzipLog.info("🗜️ Extracting specific file: \(fileName, privacy: .public) from \(archiveURL.lastPathComponent, privacy: .public)")
+
+        // セキュリティスコープを継承するためFileHandleアプローチを使用
+        let fileHandle = try FileHandle(forReadingFrom: archiveURL)
+        let fd = fileHandle.fileDescriptor
+
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        process.arguments = ["-o", "-q", archiveURL.path, fileName, "-d", destinationURL.deletingLastPathComponent().path]
+        process.arguments = ["-o", "-q", "/dev/fd/\(fd)", fileName, "-d", destinationURL.deletingLastPathComponent().path]
+
+        unzipLog.info("🚀 Executing extraction: unzip -o -q /dev/fd/\(fd) \(fileName, privacy: .public)")
 
         try process.run()
         process.waitUntilExit()
 
+        // FileHandleを閉じる
+        try fileHandle.close()
+
+        unzipLog.info("📊 Extraction completed with exit code: \(process.terminationStatus)")
+
         guard process.terminationStatus == 0 else {
+            unzipLog.error("❌ Extraction failed with exit code: \(process.terminationStatus)")
             throw ArchiveError.extractionFailed
         }
 
         let extractedFileURL = destinationURL.deletingLastPathComponent().appendingPathComponent(fileName)
         if FileManager.default.fileExists(atPath: extractedFileURL.path) {
             try FileManager.default.moveItem(at: extractedFileURL, to: destinationURL)
+            unzipLog.info("✅ Successfully moved extracted file to destination")
+        } else {
+            unzipLog.error("❌ Extracted file not found at expected location")
         }
     }
 
@@ -305,10 +357,15 @@ struct FileHistoryItem: Codable, Identifiable {
 
     // セキュリティスコープのアクセス権限を取得
     func getSecurityScopedURL() -> URL? {
+        let bookmarkLog = Logger(subsystem: "com.tosho.app", category: "bookmark")
+
         guard let bookmarkData = self.bookmarkData else {
+            bookmarkLog.info("No bookmark data available for: \(self.fileName, privacy: .public)")
             DebugLogger.shared.log("No bookmark data available for: \(fileName)", category: "FileHistoryItem")
             return nil
         }
+
+        bookmarkLog.info("Attempting to resolve bookmark for: \(self.fileName, privacy: .public), data size: \(bookmarkData.count) bytes")
 
         do {
             var isStale = false
@@ -320,13 +377,16 @@ struct FileHistoryItem: Codable, Identifiable {
             )
 
             if isStale {
+                bookmarkLog.warning("Bookmark data is stale for: \(self.fileName, privacy: .public)")
                 DebugLogger.shared.log("Bookmark data is stale for: \(fileName)", category: "FileHistoryItem")
                 return nil
             }
 
+            bookmarkLog.info("Successfully resolved security scoped URL for: \(self.fileName, privacy: .public) -> \(url.path, privacy: .public)")
             DebugLogger.shared.log("Successfully resolved security scoped URL for: \(fileName)", category: "FileHistoryItem")
             return url
         } catch {
+            bookmarkLog.error("Failed to resolve security scoped URL for: \(self.fileName, privacy: .public) - \(error.localizedDescription, privacy: .public)")
             DebugLogger.shared.logError(error, context: "Failed to resolve security scoped URL for: \(fileName)")
             return nil
         }
@@ -334,14 +394,25 @@ struct FileHistoryItem: Codable, Identifiable {
 
     // セキュリティスコープのアクセス権限を開始
     func startAccessingSecurityScopedResource() -> Bool {
+        let securityLog = Logger(subsystem: "com.tosho.app", category: "security")
+
         guard let securityScopedURL = getSecurityScopedURL() else {
+            securityLog.error("Cannot get security scoped URL for: \(self.fileName, privacy: .public)")
             return false
         }
 
+        securityLog.info("Attempting to start accessing security scoped resource: \(self.fileName, privacy: .public) at \(securityScopedURL.path, privacy: .public)")
+
+        // ファイルが存在するかチェック
+        let fileExists = FileManager.default.fileExists(atPath: securityScopedURL.path)
+        securityLog.info("File exists check for \(self.fileName, privacy: .public): \(fileExists)")
+
         let success = securityScopedURL.startAccessingSecurityScopedResource()
         if success {
+            securityLog.info("✅ Successfully started accessing security scoped resource: \(self.fileName, privacy: .public)")
             DebugLogger.shared.log("Started accessing security scoped resource: \(fileName)", category: "FileHistoryItem")
         } else {
+            securityLog.error("❌ Failed to start accessing security scoped resource: \(self.fileName, privacy: .public)")
             DebugLogger.shared.log("Failed to start accessing security scoped resource: \(fileName)", category: "FileHistoryItem")
         }
         return success
@@ -367,6 +438,11 @@ class FavoritesManager: ObservableObject {
     private let userDefaults = UserDefaults.standard
     private let fileHistoryKey = "ToshoFileHistory"
     private let autoFavoriteThreshold = 5
+
+    // 詳細デバッグログ用
+    private let bookmarkLog = Logger(subsystem: "com.tosho.app", category: "bookmark")
+    private let securityLog = Logger(subsystem: "com.tosho.app", category: "security")
+    private let unzipLog = Logger(subsystem: "com.tosho.app", category: "unzip")
 
     private init() {
         loadFileHistory()
@@ -431,23 +507,32 @@ class FavoritesManager: ObservableObject {
 
     // 履歴からファイルを開く際にセキュリティスコープを処理
     func openFileFromHistory(_ url: URL, completion: @escaping (URL?) -> Void) {
+        securityLog.info("🔍 Opening file from history: \(url.lastPathComponent, privacy: .public)")
+
         guard let item = fileHistory.first(where: { $0.url == url }) else {
+            securityLog.error("❌ File not found in history: \(url.lastPathComponent, privacy: .public)")
             DebugLogger.shared.log("File not found in history: \(url.lastPathComponent)", category: "FavoritesManager")
             completion(nil)
             return
         }
 
+        securityLog.info("📚 Found item in history, attempting security scope access")
+
         // セキュリティスコープのアクセス権限を取得
         if let securityScopedURL = item.getSecurityScopedURL() {
+            securityLog.info("🔐 Got security scoped URL, starting access...")
             if securityScopedURL.startAccessingSecurityScopedResource() {
+                securityLog.info("✅ Successfully started accessing security scoped resource for: \(url.lastPathComponent, privacy: .public)")
                 DebugLogger.shared.log("Successfully started accessing security scoped resource for: \(url.lastPathComponent)", category: "FavoritesManager")
                 completion(securityScopedURL)
             } else {
+                securityLog.error("❌ Failed to start accessing security scoped resource for: \(url.lastPathComponent, privacy: .public)")
                 DebugLogger.shared.log("Failed to start accessing security scoped resource for: \(url.lastPathComponent)", category: "FavoritesManager")
                 completion(nil)
             }
         } else {
             // セキュリティスコープが利用できない場合は元のURLを試す
+            securityLog.warning("⚠️ Security scope not available, trying original URL for: \(url.lastPathComponent, privacy: .public)")
             DebugLogger.shared.log("Security scope not available, trying original URL for: \(url.lastPathComponent)", category: "FavoritesManager")
             completion(url)
         }
