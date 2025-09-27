@@ -127,20 +127,6 @@ Tosho/
 
 ## 開発手順
 
-### 初期セットアップ
-```bash
-# プロジェクトディレクトリ作成
-mkdir -p ~/Documents/Tosho
-cd ~/Documents/Tosho
-
-# Xcodeプロジェクト作成
-# File > New > Project > macOS > App
-# Product Name: Tosho
-# Bundle Identifier: com.personal.tosho
-# Interface: SwiftUI
-# Language: Swift
-```
-
 ### ビルド＆実行
 ```bash
 # コマンドラインビルド
