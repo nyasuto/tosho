@@ -64,7 +64,8 @@ class ReaderViewModel: ObservableObject {
                     self?.loadImageAtIndex(0)
                 }
             } catch {
-                DebugLogger.shared.logError(error, category: "ReaderViewModel", context: "Loading content from \(url.lastPathComponent)")
+                DebugLogger.shared.logError(error, category: "ReaderViewModel",
+                                            context: "Loading content from \(url.lastPathComponent)")
                 DispatchQueue.main.async {
                     self?.errorMessage = error.localizedDescription
                     self?.isLoading = false
@@ -74,7 +75,7 @@ class ReaderViewModel: ObservableObject {
     }
 
     private func loadImageAtIndex(_ index: Int) {
-        guard let _ = document, index >= 0 && index < totalPages else {
+        guard document != nil, index >= 0 && index < totalPages else {
             DispatchQueue.main.async {
                 self.isLoading = false
             }

@@ -39,12 +39,16 @@ class ArchiveExtractor {
 
     func extractSingleImage(at index: Int, from archiveURL: URL, imageList: [String]) throws -> NSImage? {
         guard index >= 0 && index < imageList.count else {
-            DebugLogger.shared.logArchiveOperation("Index out of range", file: archiveURL.lastPathComponent, details: "Index: \(index), Total: \(imageList.count)")
+            DebugLogger.shared.logArchiveOperation("Index out of range",
+                                                   file: archiveURL.lastPathComponent,
+                                                   details: "Index: \(index), Total: \(imageList.count)")
             throw ArchiveError.indexOutOfRange
         }
 
         let imageName = imageList[index]
-        DebugLogger.shared.logArchiveOperation("Extracting image", file: archiveURL.lastPathComponent, details: "Image: \(imageName) (index \(index))")
+        DebugLogger.shared.logArchiveOperation("Extracting image",
+                                               file: archiveURL.lastPathComponent,
+                                               details: "Image: \(imageName) (index \(index))")
         let tempImageURL = tempDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("temp")
 
         try extractSpecificFile(fileName: imageName, from: archiveURL, to: tempImageURL)
@@ -77,7 +81,9 @@ class ArchiveExtractor {
         process.waitUntilExit()
 
         guard process.terminationStatus == 0 else {
-            DebugLogger.shared.logArchiveOperation("Unzip list failed", file: archiveURL.lastPathComponent, details: "Exit code: \(process.terminationStatus)")
+            DebugLogger.shared.logArchiveOperation("Unzip list failed",
+                                                   file: archiveURL.lastPathComponent,
+                                                   details: "Exit code: \(process.terminationStatus)")
             throw ArchiveError.extractionFailed
         }
 
@@ -87,7 +93,9 @@ class ArchiveExtractor {
             throw ArchiveError.invalidArchive
         }
 
-        DebugLogger.shared.logArchiveOperation("Successfully listed archive contents", file: archiveURL.lastPathComponent, details: "Output length: \(output.count)")
+        DebugLogger.shared.logArchiveOperation("Successfully listed archive contents",
+                                               file: archiveURL.lastPathComponent,
+                                               details: "Output length: \(output.count)")
         let imageFiles = parseImageFilesFromUnzipList(output)
         DebugLogger.shared.logArchiveOperation("Found \(imageFiles.count) image files", file: archiveURL.lastPathComponent)
         return imageFiles
@@ -166,7 +174,8 @@ class ArchiveExtractor {
                 let fileName = String(trimmedLine[fileNameRange])
                 let ext = URL(fileURLWithPath: fileName).pathExtension.lowercased()
                 if supportedImageExtensions.contains(ext) {
-                    DebugLogger.shared.logArchiveOperation("Found image file", details: "Original line: '\(trimmedLine)' -> File: '\(fileName)'")
+                    DebugLogger.shared.logArchiveOperation("Found image file",
+                                                           details: "File: '\(fileName)'")
                     imageFiles.append(fileName)
                 }
             }
