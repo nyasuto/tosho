@@ -24,6 +24,10 @@ class ToshoDocument: ObservableObject {
     func loadContent(from url: URL) throws {
         DebugLogger.shared.log("Loading content from: \(url.path)", category: "ToshoDocument")
 
+        // 新しいファイルを読み込む前にキャッシュをクリア
+        archiveExtractor.clearImageListCache()
+        DebugLogger.shared.log("Cleared archive cache before loading new content", category: "ToshoDocument")
+
         if url.hasDirectoryPath {
             DebugLogger.shared.log("Loading as folder", category: "ToshoDocument")
             try loadFolder(url)
