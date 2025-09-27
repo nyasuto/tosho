@@ -173,16 +173,20 @@ class ReaderViewModel: ObservableObject {
     deinit {
         DebugLogger.shared.log("ReaderViewModel deinitializing", category: "ReaderViewModel")
 
+        // 非同期タスクを安全にキャンセル
+        smartPreloadTask?.cancel()
+        preloadTask?.cancel()
+
         // セキュリティスコープのアクセス権限を終了
         if let fileURL = currentFileURL {
             favoritesManager.stopAccessingFileFromHistory(fileURL)
         }
-        smartPreloadTask?.cancel()
-        preloadTask?.cancel()
 
-        // 画像キャッシュをクリア
-        allImages.removeAll()
+        // 画像キャッシュとサムネイルキャッシュをクリア
         thumbnailCache.removeAll()
+        
+        // 配列を即座にクリア（強参照の削除）
+        allImages.removeAll()
 
         DebugLogger.shared.log("ReaderViewModel memory released", category: "ReaderViewModel")
     }

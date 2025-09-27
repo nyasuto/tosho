@@ -169,10 +169,12 @@ struct ToshoApp: App {
 
 // MARK: - App Delegate
 class AppDelegate: NSObject, NSApplicationDelegate {
-    // ウィンドウを保持するための配列
+    // ウィンドウを保持するための配列（スレッドセーフ）
     private var readerWindows: [NSWindow] = []
     // ウィンドウデリゲートを保持するための配列
     private var windowDelegates: [WindowDelegate] = []
+    // 配列操作の排他制御用
+    private let windowsLock = NSLock()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         // Set app name in menu bar
@@ -227,11 +229,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.setContentSize(NSSize(width: 1200, height: 900))
             window.center()
 
-            // ウィンドウが閉じられた時にリストから削除
+            // ウィンドウが閉じられた時にリストから削除（スレッドセーフ）
             let windowDelegate = WindowDelegate { [weak self] closedWindow in
-                self?.readerWindows.removeAll { $0 === closedWindow }
-                self?.windowDelegates.removeAll { $0.window === closedWindow }
-                DebugLogger.shared.log("AppDelegate: Window removed from list", category: "AppDelegate")
+                DispatchQueue.main.async {
+                    self?.removeWindow(closedWindow)
+                }
             }
             windowDelegate.window = window
             window.delegate = windowDelegate
@@ -241,15 +243,41 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let hostingView = NSHostingView(rootView: readerView)
             window.contentView = hostingView
 
-            // ウィンドウとデリゲートをリストに追加して保持
-            self?.readerWindows.append(window)
-            self?.windowDelegates.append(windowDelegate)
+            // ウィンドウとデリゲートをリストに追加して保持（スレッドセーフ）
+            self?.addWindow(window, delegate: windowDelegate)
 
             DebugLogger.shared.log("AppDelegate: Making window key and front", category: "AppDelegate")
             window.makeKeyAndOrderFront(nil)
 
             DebugLogger.shared.log("AppDelegate: New reader window opened successfully, total windows: \(self?.readerWindows.count ?? 0)", category: "AppDelegate")
         }
+    }
+
+    // MARK: - Thread-Safe Window Management
+
+    private func addWindow(_ window: NSWindow, delegate: WindowDelegate) {
+        windowsLock.lock()
+        defer { windowsLock.unlock() }
+
+        readerWindows.append(window)
+        windowDelegates.append(delegate)
+        DebugLogger.shared.log("AppDelegate: Window added, total: \(readerWindows.count)", category: "AppDelegate")
+    }
+
+    private func removeWindow(_ window: NSWindow) {
+        windowsLock.lock()
+        defer { windowsLock.unlock() }
+
+        // ウィンドウデリゲートの参照を明示的にクリア
+        if let index = windowDelegates.firstIndex(where: { $0.window === window }) {
+            windowDelegates[index].window = nil
+            windowDelegates.remove(at: index)
+        }
+
+        // ウィンドウを削除
+        readerWindows.removeAll { $0 === window }
+
+        DebugLogger.shared.log("AppDelegate: Window removed, remaining: \(readerWindows.count)", category: "AppDelegate")
     }
 }
 
@@ -265,6 +293,16 @@ class WindowDelegate: NSObject, NSWindowDelegate {
 
     func windowWillClose(_ notification: Notification) {
         if let window = notification.object as? NSWindow {
+            DebugLogger.shared.log("WindowDelegate: Window will close", category: "WindowDelegate")
+
+            // contentViewがNSHostingViewの場合、明示的にrootViewをnilに設定
+            if let hostingView = window.contentView as? NSHostingView<ReaderView> {
+                // rootViewの参照をクリアしてReaderViewModelの解放を促進
+                DispatchQueue.main.async {
+                    hostingView.rootView = ReaderView(fileURL: URL(fileURLWithPath: "/dev/null"))
+                }
+            }
+
             onWindowClose(window)
         }
     }
