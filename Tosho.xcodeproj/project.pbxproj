@@ -15,12 +15,12 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		D000000BA1000001000000AA /* Tosho.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tosho.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D0000002A1000001000000AA /* ToshoApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToshoApp.swift; sourceTree = "<group>"; };
 		D0000004A1000001000000AA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D0000006A1000001000000AA /* ReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderView.swift; sourceTree = "<group>"; };
 		D0000008A1000001000000AA /* ReaderViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderViewModel.swift; sourceTree = "<group>"; };
 		D000000AA1000001000000AA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		D000000BA1000001000000AA /* Tosho.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tosho.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D000000CA1000001000000AA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		D000000EA1000001000000AB /* Tosho.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tosho.entitlements; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -39,12 +39,12 @@
 		D000000EA1000001000000AA = {
 			isa = PBXGroup;
 			children = (
-				D000000FA1000001000000AA /* Tosho */,
+				D000000FA1000001000000AA,
 				D0000010A1000001000000AA /* Products */,
 			);
 			sourceTree = "<group>";
 		};
-		D000000FA1000001000000AA /* Tosho */ = {
+		D000000FA1000001000000AA = {
 			isa = PBXGroup;
 			children = (
 				D0000011A1000001000000AA /* App */,
@@ -149,7 +149,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1500;
-				LastUpgradeCheck = 1500;
+				LastUpgradeCheck = 2600;
 				TargetAttributes = {
 					D0000018A1000001000000AA = {
 						CreatedOnToolsVersion = 15.0;
@@ -234,6 +234,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -258,6 +259,7 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -297,6 +299,7 @@
 				CLANG_WARN_UNREACHABLE_CODE = YES;
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -314,6 +317,7 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 				SWIFT_COMPILATION_MODE = wholemodule;
 			};
 			name = Release;
@@ -327,8 +331,13 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Resources\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readonly;
+				ENABLE_FILE_ACCESS_PICTURE_FOLDER = readonly;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -353,8 +362,13 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"Resources\"";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_FILE_ACCESS_DOWNLOADS_FOLDER = readonly;
+				ENABLE_FILE_ACCESS_PICTURE_FOLDER = readonly;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = App/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
@@ -373,20 +387,20 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		D000001DA1000001000000AA /* Build configuration list for PBXProject "Tosho" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				D000001EA1000001000000AA /* Debug */,
-				D000001FA1000001000000AA /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		D0000019A1000001000000AA /* Build configuration list for PBXNativeTarget "Tosho" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				D0000021A1000001000000AA /* Release */,
 				D0000020A1000001000000AA /* Debug */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		D000001DA1000001000000AA /* Build configuration list for PBXProject "Tosho" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				D000001EA1000001000000AA /* Debug */,
+				D000001FA1000001000000AA /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
