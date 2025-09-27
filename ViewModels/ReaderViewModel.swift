@@ -161,7 +161,7 @@ class ReaderViewModel: ObservableObject {
 
 // MARK: - File Loader
 class FileLoader {
-    private let supportedExtensions = ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif"]
+    private let supportedExtensions = ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif", "avif"]
 
     func loadImagesFromFolder(_ folderURL: URL) throws -> [URL] {
         let fileManager = FileManager.default

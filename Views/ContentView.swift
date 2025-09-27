@@ -106,6 +106,11 @@ struct ContentView: View {
             contentTypes.append(webpType)
         }
 
+        // Add AVIF support
+        if let avifType = UTType(filenameExtension: "avif") {
+            contentTypes.append(avifType)
+        }
+
         // Add CBZ support
         if let cbzType = UTType(filenameExtension: "cbz") {
             contentTypes.append(cbzType)
@@ -182,7 +187,7 @@ struct WelcomeView: View {
                         .fontWeight(.medium)
                         .foregroundColor(.secondary)
 
-                    Text("画像: .jpg, .jpeg, .png, .webp, .heic, .tiff, .bmp, .gif")
+                    Text("画像: .jpg, .jpeg, .png, .webp, .heic, .tiff, .bmp, .gif, .avif")
                         .font(.caption2)
                         .foregroundColor(.secondary)
 
