@@ -46,7 +46,6 @@ jobs:
           -scheme Tosho \
           -destination 'platform=macOS' \
           -derivedDataPath "$DERIVED_DATA" \
-          -enableCodeCoverage YES \
           -configuration Debug \
           clean build | xcbeautify
 
