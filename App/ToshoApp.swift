@@ -21,15 +21,10 @@ struct ToshoApp: App {
         .commands {
             // File Menu Commands
             CommandGroup(replacing: .newItem) {
-                Button("Open File...") {
-                    openFile()
+                Button("Open...") {
+                    openFileOrFolder()
                 }
                 .keyboardShortcut("O", modifiers: .command)
-
-                Button("Open Folder...") {
-                    openFolder()
-                }
-                .keyboardShortcut("O", modifiers: [.command, .shift])
             }
 
             // View Menu Commands
@@ -64,29 +59,38 @@ struct ToshoApp: App {
         }
     }
 
-    private func openFile() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
-        panel.canChooseFiles = true
-        panel.allowedContentTypes = [.jpeg, .png, .webP, .heic, .tiff, .bmp, .gif]
-
-        if panel.runModal() == .OK {
-            if let url = panel.url {
-                NotificationCenter.default.post(name: .openFile, object: url)
-            }
-        }
-    }
-
-    private func openFolder() {
+    private func openFileOrFolder() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = true
-        panel.canChooseFiles = false
+        panel.canChooseFiles = true
+        panel.allowedContentTypes = [.jpeg, .png, .webP, .heic, .tiff, .bmp, .gif, .zip, .data]
 
         if panel.runModal() == .OK {
             if let url = panel.url {
-                NotificationCenter.default.post(name: .openFolder, object: url)
+                // 選択されたURLの種類を自動判別
+                var isDirectory: ObjCBool = false
+                let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
+
+                if exists {
+                    if isDirectory.boolValue {
+                        // ディレクトリの場合
+                        NotificationCenter.default.post(name: .openFolder, object: url)
+                    } else {
+                        // ファイルの場合、拡張子でさらに判別
+                        let fileExtension = url.pathExtension.lowercased()
+                        if fileExtension == "zip" || fileExtension == "cbz" {
+                            // アーカイブファイル
+                            NotificationCenter.default.post(name: .openFile, object: url)
+                        } else if ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif", "avif"].contains(fileExtension) {
+                            // 画像ファイル
+                            NotificationCenter.default.post(name: .openFile, object: url)
+                        } else {
+                            // その他のファイル（とりあえずファイルとして処理）
+                            NotificationCenter.default.post(name: .openFile, object: url)
+                        }
+                    }
+                }
             }
         }
     }
