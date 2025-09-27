@@ -42,6 +42,15 @@ class ReaderViewModel: ObservableObject {
     private let thumbnailSize = CGSize(width: 90, height: 130)
     private let favoritesManager = FavoritesManager.shared
     private var preloadTask: Task<Void, Never>? // 事前ロードタスク
+    private var currentFileURL: URL? // セキュリティスコープ管理用
+
+    deinit {
+        // セキュリティスコープのアクセス権限を終了
+        if let fileURL = currentFileURL {
+            favoritesManager.stopAccessingFileFromHistory(fileURL)
+        }
+        preloadTask?.cancel()
+    }
 
     var hasNextPage: Bool {
         if isDoublePageMode {
@@ -74,6 +83,9 @@ class ReaderViewModel: ObservableObject {
 
         // 既存のプリロードタスクをキャンセル
         preloadTask?.cancel()
+
+        // 現在のファイルURLを保存（セキュリティスコープ管理用）
+        currentFileURL = url
 
         // ファイルアクセスを記録
         favoritesManager.recordFileAccess(url)
