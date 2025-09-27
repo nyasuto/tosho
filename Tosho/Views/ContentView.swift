@@ -125,7 +125,7 @@ struct WelcomeView: View {
                 // Supported formats info
                 Text("Supports: JPEG, PNG, WebP, HEIC, TIFF, BMP, GIF")
                     .font(.caption2)
-                    .foregroundColor(.tertiary)
+                    .foregroundColor(.secondary)
                     .padding(.top, 5)
             }
             .padding(.top, 20)
@@ -174,7 +174,9 @@ struct InstructionCard: View {
 }
 
 // MARK: - Preview
-#Preview {
-    ContentView()
-        .frame(width: 1200, height: 900)
+struct ContentView_Previews: PreviewProvider {
+    static var previews: some View {
+        ContentView()
+            .frame(width: 1200, height: 900)
+    }
 }

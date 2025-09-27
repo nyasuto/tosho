@@ -174,7 +174,9 @@ struct ReaderView: View {
 }
 
 // MARK: - Preview
-#Preview {
-    ReaderView(fileURL: URL(fileURLWithPath: "/path/to/image.jpg"))
-        .frame(width: 1200, height: 900)
+struct ReaderView_Previews: PreviewProvider {
+    static var previews: some View {
+        ReaderView(fileURL: URL(fileURLWithPath: "/path/to/image.jpg"))
+            .frame(width: 1200, height: 900)
+    }
 }
