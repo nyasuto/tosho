@@ -32,15 +32,16 @@ class ReaderViewModel: ObservableObject {
     @Published var showControls: Bool = false
     @Published var isDoublePageMode: Bool = false
     @Published var showGallery: Bool = false
+    @Published var loadingProgress: Double = 0.0 // 全画像ロード進捗
 
     @ObservedObject var readingSettings = ReadingSettings()
 
-    private var imageCache: [Int: NSImage] = [:]
+    private var allImages: [NSImage] = [] // 全画像を事前ロード
     private var thumbnailCache: [Int: NSImage] = [:]
     private var document: ToshoDocument?
-    private let cacheSize = 5
     private let thumbnailSize = CGSize(width: 90, height: 130)
     private let favoritesManager = FavoritesManager.shared
+    private var preloadTask: Task<Void, Never>? // 事前ロードタスク
 
     var hasNextPage: Bool {
         if isDoublePageMode {
@@ -68,7 +69,11 @@ class ReaderViewModel: ObservableObject {
     func loadContent(from url: URL) {
         isLoading = true
         errorMessage = nil
+        loadingProgress = 0.0
         DebugLogger.shared.log("Starting to load content from: \(url.lastPathComponent)", category: "ReaderViewModel")
+
+        // 既存のプリロードタスクをキャンセル
+        preloadTask?.cancel()
 
         // ファイルアクセスを記録
         favoritesManager.recordFileAccess(url)
@@ -82,7 +87,14 @@ class ReaderViewModel: ObservableObject {
                     self?.document = document
                     self?.totalPages = document.totalPages
                     self?.currentPageIndex = 0
-                    self?.loadImageAtIndex(0)
+
+                    // アーカイブの場合は全画像を事前ロード
+                    if case .archive = document.contentType {
+                        self?.preloadAllImages()
+                    } else {
+                        // フォルダや単一画像の場合は従来通り
+                        self?.loadImageAtIndex(0)
+                    }
                 }
             } catch {
                 DebugLogger.shared.logError(error, category: "ReaderViewModel",
@@ -95,7 +107,85 @@ class ReaderViewModel: ObservableObject {
         }
     }
 
+    // MARK: - 全画像事前ロード機能
+
+    private func preloadAllImages() {
+        guard let document = document, totalPages > 0 else { return }
+
+        DebugLogger.shared.log("Starting preload of all \(totalPages) images", category: "ReaderViewModel")
+
+        preloadTask = Task { [weak self] in
+            guard let self = self else { return }
+            let totalPagesCount = self.totalPages
+            var loadedImages: [NSImage] = Array(repeating: NSImage(), count: totalPagesCount)
+
+            for index in 0..<totalPagesCount {
+                // キャンセルチェック
+                if Task.isCancelled { return }
+
+                do {
+                    if let image = try document.getImage(at: index) {
+                        loadedImages[index] = image
+
+                        // 進捗を更新（メインスレッド）
+                        await MainActor.run { [weak self] in
+                            self?.loadingProgress = Double(index + 1) / Double(totalPagesCount)
+
+                            // 最初の画像が読み込まれたら即座に表示
+                            if index == 0 {
+                                self?.allImages = loadedImages
+                                self?.displayImagesFromCache(index: 0)
+                            }
+                        }
+                    }
+                } catch {
+                    DebugLogger.shared.logError(error, context: "Preloading image at index \(index)")
+                    // エラーが発生しても続行
+                    continue
+                }
+
+                // ネットワークドライブの負荷軽減のため少し待機
+                try? await Task.sleep(nanoseconds: 1_000_000) // 1ms
+            }
+
+            // 全て完了
+            await MainActor.run { [weak self] in
+                self?.allImages = loadedImages
+                self?.isLoading = false
+                self?.loadingProgress = 1.0
+                DebugLogger.shared.log("Preload completed for \(totalPagesCount) images", category: "ReaderViewModel")
+            }
+        }
+    }
+
+    private func displayImagesFromCache(index: Int) {
+        guard index >= 0 && index < allImages.count else {
+            isLoading = false
+            return
+        }
+
+        if shouldShowDoublePages {
+            // 見開きモード
+            currentImage = allImages[index]
+            secondImage = (index + 1 < allImages.count) ? allImages[index + 1] : nil
+        } else {
+            // 単ページモード
+            currentImage = allImages[index]
+            secondImage = nil
+        }
+
+        currentPageIndex = index
+        isLoading = false
+    }
+
     private func loadImageAtIndex(_ index: Int) {
+        // 全画像がロード済みの場合はキャッシュから即座に表示
+        if !allImages.isEmpty && index < allImages.count {
+            displayImagesFromCache(index: index)
+            return
+        }
+
+        // 従来の段階的読み込み（フォルダや単一画像用）
         guard document != nil, index >= 0 && index < totalPages else {
             DispatchQueue.main.async {
                 self.isLoading = false
@@ -114,16 +204,7 @@ class ReaderViewModel: ObservableObject {
     private func loadSinglePageImage(index: Int) {
         guard let document = self.document else { return }
 
-        if let cachedImage = imageCache[index] {
-            DispatchQueue.main.async {
-                self.currentImage = cachedImage
-                self.secondImage = nil
-                self.currentPageIndex = index
-                self.isLoading = false
-            }
-            preloadNearbyImages(around: index)
-            return
-        }
+        // 全画像プリロード方式では古いキャッシュシステムは使用しない
 
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
@@ -136,15 +217,15 @@ class ReaderViewModel: ObservableObject {
                 }
 
                 DispatchQueue.main.async {
-                    self?.imageCache[index] = image
+                    // 全画像プリロード方式では古いキャッシュシステムは使用しない
                     self?.currentImage = image
                     self?.secondImage = nil
                     self?.currentPageIndex = index
                     self?.isLoading = false
-                    self?.cleanCache()
+                    // 全画像プリロード方式ではキャッシュクリーンアップ不要
                 }
 
-                self?.preloadNearbyImages(around: index)
+                // 全画像プリロード方式では不要
             } catch {
                 DispatchQueue.main.async {
                     self?.errorMessage = error.localizedDescription
@@ -163,31 +244,12 @@ class ReaderViewModel: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
                 // 1ページ目を取得
-                var firstImage: NSImage?
-                if let cached = self?.imageCache[firstIndex] {
-                    firstImage = cached
-                } else {
-                    firstImage = try document.getImage(at: firstIndex)
-                    if let image = firstImage {
-                        DispatchQueue.main.async {
-                            self?.imageCache[firstIndex] = image
-                        }
-                    }
-                }
+                let firstImage = try document.getImage(at: firstIndex)
 
                 // 2ページ目を取得
                 var secondImage: NSImage?
                 if secondIndex < self?.totalPages ?? 0 {
-                    if let cached = self?.imageCache[secondIndex] {
-                        secondImage = cached
-                    } else {
-                        secondImage = try document.getImage(at: secondIndex)
-                        if let image = secondImage {
-                            DispatchQueue.main.async {
-                                self?.imageCache[secondIndex] = image
-                            }
-                        }
-                    }
+                    secondImage = try document.getImage(at: secondIndex)
                 }
 
                 DispatchQueue.main.async {
@@ -195,10 +257,7 @@ class ReaderViewModel: ObservableObject {
                     self?.secondImage = secondImage
                     self?.currentPageIndex = firstIndex
                     self?.isLoading = false
-                    self?.cleanCache()
                 }
-
-                self?.preloadNearbyImages(around: firstIndex)
             } catch {
                 DispatchQueue.main.async {
                     self?.errorMessage = error.localizedDescription
@@ -208,39 +267,7 @@ class ReaderViewModel: ObservableObject {
         }
     }
 
-    private func preloadNearbyImages(around centerIndex: Int) {
-        guard let document = document else { return }
-
-        DispatchQueue.global(qos: .background).async { [weak self] in
-            guard let self = self else { return }
-
-            let range = max(0, centerIndex - self.cacheSize/2)...min(self.totalPages - 1, centerIndex + self.cacheSize/2)
-
-            for i in range {
-                if self.imageCache[i] == nil {
-                    do {
-                        if let image = try document.getImage(at: i) {
-                            DispatchQueue.main.async {
-                                self.imageCache[i] = image
-                            }
-                        }
-                    } catch {
-                        continue
-                    }
-                }
-            }
-        }
-    }
-
-    private func cleanCache() {
-        let indicesToKeep = Set(max(0, currentPageIndex - cacheSize)...min(totalPages - 1, currentPageIndex + cacheSize))
-
-        for index in imageCache.keys {
-            if !indicesToKeep.contains(index) {
-                imageCache.removeValue(forKey: index)
-            }
-        }
-    }
+    // MARK: - 古いキャッシュシステムは削除（全画像プリロード方式では不要）
 
     func nextPage() {
         guard hasNextPage else { return }
@@ -259,8 +286,13 @@ class ReaderViewModel: ObservableObject {
             newIndex = min(currentPageIndex + 1, totalPages - 1)
         }
 
-        isLoading = true
-        loadImageAtIndex(newIndex)
+        // 全画像プリロード方式では即座に表示
+        if !allImages.isEmpty {
+            displayImagesFromCache(index: newIndex)
+        } else {
+            isLoading = true
+            loadImageAtIndex(newIndex)
+        }
     }
 
     func previousPage() {
@@ -280,8 +312,13 @@ class ReaderViewModel: ObservableObject {
             newIndex = max(currentPageIndex - 1, 0)
         }
 
-        isLoading = true
-        loadImageAtIndex(newIndex)
+        // 全画像プリロード方式では即座に表示
+        if !allImages.isEmpty {
+            displayImagesFromCache(index: newIndex)
+        } else {
+            isLoading = true
+            loadImageAtIndex(newIndex)
+        }
     }
 
     // 右から左に読む場合のページ移動
@@ -345,8 +382,13 @@ class ReaderViewModel: ObservableObject {
             newIndex = min(currentPageIndex + 1, totalPages - 1)
         }
 
-        isLoading = true
-        loadImageAtIndex(newIndex)
+        // 全画像プリロード方式では即座に表示
+        if !allImages.isEmpty {
+            displayImagesFromCache(index: newIndex)
+        } else {
+            isLoading = true
+            loadImageAtIndex(newIndex)
+        }
     }
 
     func adjustPageBackward() {
@@ -368,8 +410,13 @@ class ReaderViewModel: ObservableObject {
             newIndex = max(currentPageIndex - 1, 0)
         }
 
-        isLoading = true
-        loadImageAtIndex(newIndex)
+        // 全画像プリロード方式では即座に表示
+        if !allImages.isEmpty {
+            displayImagesFromCache(index: newIndex)
+        } else {
+            isLoading = true
+            loadImageAtIndex(newIndex)
+        }
     }
 
     // MARK: - Gallery Functions
@@ -381,13 +428,26 @@ class ReaderViewModel: ObservableObject {
     func jumpToPage(_ pageIndex: Int) {
         guard pageIndex >= 0 && pageIndex < totalPages else { return }
         showGallery = false
-        isLoading = true
-        loadImageAtIndex(pageIndex)
+
+        // 全画像プリロード方式では即座に表示
+        if !allImages.isEmpty {
+            displayImagesFromCache(index: pageIndex)
+        } else {
+            isLoading = true
+            loadImageAtIndex(pageIndex)
+        }
     }
 
     func getThumbnail(for pageIndex: Int) -> NSImage? {
         // キャッシュから取得
         if let thumbnail = thumbnailCache[pageIndex] {
+            return thumbnail
+        }
+
+        // 全画像がプリロード済みの場合は即座にサムネイル生成
+        if !allImages.isEmpty && pageIndex < allImages.count {
+            let thumbnail = allImages[pageIndex].resized(to: thumbnailSize)
+            thumbnailCache[pageIndex] = thumbnail
             return thumbnail
         }
 
