@@ -6,6 +6,8 @@
 //
 
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @State private var selectedFileURL: URL?
@@ -17,7 +19,10 @@ struct ContentView: View {
             if let url = selectedFileURL {
                 ReaderView(fileURL: url)
             } else {
-                WelcomeView()
+                WelcomeView(
+                    onOpenFile: openFile,
+                    onOpenFolder: openFolder
+                )
             }
 
             if isLoading {
@@ -84,10 +89,52 @@ struct ContentView: View {
             }
         }
     }
+
+    private func openFile() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.canChooseFiles = true
+
+        // Use modern allowedContentTypes with custom types for WebP and CBZ
+        var contentTypes: [UTType] = [
+            .jpeg, .png, .gif, .tiff, .bmp, .heic, .zip
+        ]
+
+        // Add WebP support
+        if let webpType = UTType(filenameExtension: "webp") {
+            contentTypes.append(webpType)
+        }
+
+        // Add CBZ support
+        if let cbzType = UTType(filenameExtension: "cbz") {
+            contentTypes.append(cbzType)
+        }
+
+        panel.allowedContentTypes = contentTypes
+
+        if panel.runModal() == .OK {
+            selectedFileURL = panel.url
+        }
+    }
+
+    private func openFolder() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+
+        if panel.runModal() == .OK {
+            selectedFileURL = panel.url
+        }
+    }
 }
 
 // MARK: - Welcome View
 struct WelcomeView: View {
+    let onOpenFile: () -> Void
+    let onOpenFolder: () -> Void
+
     var body: some View {
         VStack(spacing: 30) {
             Image(systemName: "book.closed.fill")
@@ -103,19 +150,25 @@ struct WelcomeView: View {
 
             VStack(spacing: 15) {
                 HStack(spacing: 20) {
-                    InstructionCard(
-                        icon: "folder",
-                        title: "Open Folder",
-                        shortcut: "⌘⇧O",
-                        description: "Browse image folders"
-                    )
+                    Button(action: onOpenFolder) {
+                        InstructionCard(
+                            icon: "folder",
+                            title: "Open Folder",
+                            shortcut: "⌘⇧O",
+                            description: "Browse image folders"
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
 
-                    InstructionCard(
-                        icon: "doc",
-                        title: "Open File",
-                        shortcut: "⌘O",
-                        description: "Select single image"
-                    )
+                    Button(action: onOpenFile) {
+                        InstructionCard(
+                            icon: "doc",
+                            title: "Open File",
+                            shortcut: "⌘O",
+                            description: "Select single image"
+                        )
+                    }
+                    .buttonStyle(PlainButtonStyle())
                 }
 
                 Text("or drag & drop files here")
@@ -123,10 +176,21 @@ struct WelcomeView: View {
                     .foregroundColor(.secondary)
 
                 // Supported formats info
-                Text("Supports: JPEG, PNG, WebP, HEIC, TIFF, BMP, GIF, ZIP, CBZ")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(.top, 5)
+                VStack(spacing: 2) {
+                    Text("対応ファイル形式:")
+                        .font(.caption2)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+
+                    Text("画像: .jpg, .jpeg, .png, .webp, .heic, .tiff, .bmp, .gif")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+
+                    Text("アーカイブ: .zip, .cbz")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.top, 8)
             }
             .padding(.top, 20)
         }
@@ -141,6 +205,8 @@ struct InstructionCard: View {
     let title: String
     let shortcut: String
     let description: String
+
+    @State private var isHovered = false
 
     var body: some View {
         VStack(spacing: 6) {
@@ -169,7 +235,12 @@ struct InstructionCard: View {
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
-        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
+        .shadow(color: .black.opacity(isHovered ? 0.2 : 0.1), radius: isHovered ? 4 : 2, x: 0, y: isHovered ? 2 : 1)
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
     }
 }
 
@@ -178,5 +249,15 @@ struct ContentView_Previews: PreviewProvider {
     static var previews: some View {
         ContentView()
             .frame(width: 1200, height: 900)
+    }
+}
+
+struct WelcomeView_Previews: PreviewProvider {
+    static var previews: some View {
+        WelcomeView(
+            onOpenFile: { print("Open File") },
+            onOpenFolder: { print("Open Folder") }
+        )
+        .frame(width: 1200, height: 900)
     }
 }
