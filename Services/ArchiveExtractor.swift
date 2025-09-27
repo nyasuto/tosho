@@ -9,7 +9,10 @@ import Foundation
 import AppKit
 import UserNotifications
 import os.log
-// import ZIPFoundation  // Requires full Xcode for build
+
+#if canImport(ZIPFoundation)
+import ZIPFoundation
+#endif
 
 /// セキュリティスコープのアクセス権限を安全に管理するヘルパー関数
 func withSecurityScope<T>(_ url: URL, _ work: () throws -> T) rethrows -> T {
@@ -22,6 +25,115 @@ func withSecurityScope<T>(_ url: URL, _ work: () throws -> T) rethrows -> T {
     return try work()
 }
 
+// MARK: - ZIPFoundation based extractor
+#if canImport(ZIPFoundation)
+class ZIPFoundationExtractor {
+    private let supportedImageExtensions = ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif", "avif"]
+    private var archiveCache: [URL: Archive] = [:]
+    private var entriesCache: [URL: [String: Entry]] = [:]
+
+    func getImageList(from archiveURL: URL) throws -> [String] {
+        DebugLogger.shared.log("ZIPFoundation: Getting image list from \(archiveURL.lastPathComponent)", category: "ZIPFoundationExtractor")
+
+        return try withSecurityScope(archiveURL) {
+            let archive = try getArchive(for: archiveURL)
+            let entries = getEntries(for: archiveURL, archive: archive)
+
+            let imageFiles = entries.keys.filter { fileName in
+                let ext = URL(fileURLWithPath: fileName).pathExtension.lowercased()
+                return supportedImageExtensions.contains(ext)
+            }.sorted { name1, name2 in
+                name1.localizedStandardCompare(name2) == .orderedAscending
+            }
+
+            DebugLogger.shared.log("ZIPFoundation: Found \(imageFiles.count) image files", category: "ZIPFoundationExtractor")
+            return imageFiles
+        }
+    }
+
+    func extractSingleImage(at index: Int, from archiveURL: URL, imageList: [String]) throws -> NSImage? {
+        guard index >= 0 && index < imageList.count else {
+            throw ArchiveError.indexOutOfRange
+        }
+
+        let imageName = imageList[index]
+        DebugLogger.shared.log("ZIPFoundation: Extracting image \(imageName) at index \(index)", category: "ZIPFoundationExtractor")
+
+        return try withSecurityScope(archiveURL) {
+            let archive = try getArchive(for: archiveURL)
+            let entries = getEntries(for: archiveURL, archive: archive)
+
+            guard let entry = entries[imageName] else {
+                DebugLogger.shared.log("ZIPFoundation: Entry not found for \(imageName)", category: "ZIPFoundationExtractor")
+                throw ArchiveError.invalidArchive
+            }
+
+            // Extract directly to memory
+            var imageData = Data()
+            _ = try archive.extract(entry, bufferSize: 64 * 1024) { data in
+                imageData.append(data)
+            }
+
+            // Create NSImage with downsampling
+            guard let image = createOptimizedImage(from: imageData) else {
+                DebugLogger.shared.log("ZIPFoundation: Failed to create NSImage from data", category: "ZIPFoundationExtractor")
+                throw ArchiveError.imageLoadFailed
+            }
+
+            DebugLogger.shared.log("ZIPFoundation: Successfully extracted \(imageName)", category: "ZIPFoundationExtractor")
+            return image
+        }
+    }
+
+    private func getArchive(for url: URL) throws -> Archive {
+        if let cachedArchive = archiveCache[url] {
+            return cachedArchive
+        }
+
+        let archive = try Archive(url: url, accessMode: .read)
+        archiveCache[url] = archive
+        return archive
+    }
+
+    private func getEntries(for url: URL, archive: Archive) -> [String: Entry] {
+        if let cachedEntries = entriesCache[url] {
+            return cachedEntries
+        }
+
+        let entries = Dictionary(uniqueKeysWithValues: archive.map { ($0.path, $0) })
+        entriesCache[url] = entries
+        return entries
+    }
+
+    private func createOptimizedImage(from data: Data) -> NSImage? {
+        guard let imageSource = CGImageSourceCreateWithData(data as CFData, nil) else {
+            return nil
+        }
+
+        // Create downsampled image for better memory efficiency
+        let options: [CFString: Any] = [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceShouldCacheImmediately: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: 2048 // Reasonable size for manga pages
+        ]
+
+        guard let thumbnail = CGImageSourceCreateThumbnailAtIndex(imageSource, 0, options as CFDictionary) else {
+            // Fallback to original image if thumbnail creation fails
+            return NSImage(data: data)
+        }
+
+        return NSImage(cgImage: thumbnail, size: .zero)
+    }
+
+    func clearCache() {
+        archiveCache.removeAll()
+        entriesCache.removeAll()
+        DebugLogger.shared.log("ZIPFoundation: Cache cleared", category: "ZIPFoundationExtractor")
+    }
+}
+#endif
+
 // ZIPFoundationベースの実装では、メモリへの事前ロードは不要
 // ZIPFoundationが効率的にストリーミング処理を行う
 
@@ -29,7 +141,12 @@ class ArchiveExtractor {
     private let supportedImageExtensions = ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif", "avif"]
     private let tempDirectory: URL
 
-    // イメージリストキャッシュ（ZIPFoundationでは軽量）
+    // ZIPFoundation extractor for high performance
+    #if canImport(ZIPFoundation)
+    private let zipFoundationExtractor = ZIPFoundationExtractor()
+    #endif
+
+    // Fallback: イメージリストキャッシュ（従来のunzip用）
     private var archiveImageLists: [URL: [String]] = [:]
 
     init() {
@@ -39,6 +156,9 @@ class ArchiveExtractor {
 
     deinit {
         cleanup()
+        #if canImport(ZIPFoundation)
+        zipFoundationExtractor.clearCache()
+        #endif
     }
 
     // MARK: - Cache Management
@@ -46,6 +166,9 @@ class ArchiveExtractor {
     /// イメージリストキャッシュをクリア
     func clearImageListCache() {
         self.archiveImageLists.removeAll()
+        #if canImport(ZIPFoundation)
+        zipFoundationExtractor.clearCache()
+        #endif
     }
 
     func extractArchive(at archiveURL: URL) throws -> [URL] {
@@ -73,12 +196,23 @@ class ArchiveExtractor {
         }
 
         let imageName = imageList[index]
-        let archiveLog = Logger(subsystem: "com.tosho.app", category: "archive")
 
-        DebugLogger.shared.logArchiveOperation("Extracting image",
+        // Try ZIPFoundation first for optimal performance
+        #if canImport(ZIPFoundation)
+        do {
+            DebugLogger.shared.log("Attempting ZIPFoundation extraction for image: \(imageName)", category: "ArchiveExtractor")
+            return try zipFoundationExtractor.extractSingleImage(at: index, from: archiveURL, imageList: imageList)
+        } catch {
+            DebugLogger.shared.log("ZIPFoundation extraction failed, falling back to unzip: \(error)", category: "ArchiveExtractor")
+        }
+        #endif
+
+        // Fallback to unzip command
+        let archiveLog = Logger(subsystem: "com.tosho.app", category: "archive")
+        DebugLogger.shared.logArchiveOperation("Extracting image with unzip fallback",
                                                file: archiveURL.lastPathComponent,
                                                details: "Image: \(imageName) (index \(index))")
-        archiveLog.info("🗜️ Extracting image with Archive framework: \(imageName, privacy: .public)")
+        archiveLog.info("🗜️ Extracting image with unzip fallback: \(imageName, privacy: .public)")
 
         // Try memory-based extraction first with ZipExtractor
         if ZipExtractor.isSupported(archiveURL) {
@@ -138,16 +272,24 @@ class ArchiveExtractor {
     }
 
     func getImageList(from archiveURL: URL) throws -> [String] {
-        let unzipLog = Logger(subsystem: "com.tosho.app", category: "unzip")
-
-        DebugLogger.shared.logArchiveOperation("Getting image list", file: archiveURL.lastPathComponent)
-        unzipLog.info("📋 Starting getImageList with security scoped unzip for: \(archiveURL.lastPathComponent, privacy: .public)")
-
         guard isArchiveFile(archiveURL) else {
-            unzipLog.error("❌ Unsupported archive format: \(archiveURL.lastPathComponent, privacy: .public)")
-            DebugLogger.shared.logError(ArchiveError.unsupportedFormat, context: "File: \(archiveURL.lastPathComponent)")
             throw ArchiveError.unsupportedFormat
         }
+
+        // Try ZIPFoundation first for optimal performance
+        #if canImport(ZIPFoundation)
+        do {
+            DebugLogger.shared.log("Attempting ZIPFoundation extraction for: \(archiveURL.lastPathComponent)", category: "ArchiveExtractor")
+            return try zipFoundationExtractor.getImageList(from: archiveURL)
+        } catch {
+            DebugLogger.shared.log("ZIPFoundation failed, falling back to unzip: \(error)", category: "ArchiveExtractor")
+        }
+        #endif
+
+        // Fallback to unzip command
+        let unzipLog = Logger(subsystem: "com.tosho.app", category: "unzip")
+        DebugLogger.shared.logArchiveOperation("Getting image list with unzip fallback", file: archiveURL.lastPathComponent)
+        unzipLog.info("📋 Starting getImageList with security scoped unzip for: \(archiveURL.lastPathComponent, privacy: .public)")
 
         // キャッシュされたイメージリストをチェック
         if let cachedImageList = self.archiveImageLists[archiveURL] {
