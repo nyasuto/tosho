@@ -155,11 +155,18 @@ class ArchiveExtractor {
                 continue
             }
 
-            let components = trimmedLine.components(separatedBy: .whitespaces)
-            if components.count >= 4 {
-                let fileName = components.dropFirst(3).joined(separator: " ")
+            // unzip -l の出力形式: Length Date Time Name
+            // 例: "87130  07-21-2025 11:12   01.webp"
+            // 正規表現を使って確実にファイル名部分を抽出
+            let pattern = #"^\s*\d+\s+\d{2}-\d{2}-\d{4}\s+\d{2}:\d{2}\s+(.+)$"#
+            if let regex = try? NSRegularExpression(pattern: pattern),
+               let match = regex.firstMatch(in: trimmedLine, range: NSRange(trimmedLine.startIndex..., in: trimmedLine)),
+               let fileNameRange = Range(match.range(at: 1), in: trimmedLine) {
+
+                let fileName = String(trimmedLine[fileNameRange])
                 let ext = URL(fileURLWithPath: fileName).pathExtension.lowercased()
                 if supportedImageExtensions.contains(ext) {
+                    DebugLogger.shared.logArchiveOperation("Found image file", details: "Original line: '\(trimmedLine)' -> File: '\(fileName)'")
                     imageFiles.append(fileName)
                 }
             }
