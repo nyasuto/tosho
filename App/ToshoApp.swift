@@ -34,18 +34,6 @@ struct ToshoApp: App {
 
             // View Menu Commands
             CommandMenu("View") {
-                Button("Right Arrow") {
-                    NotificationCenter.default.post(name: .rightArrow, object: nil)
-                }
-                .keyboardShortcut(.rightArrow, modifiers: [])
-
-                Button("Left Arrow") {
-                    NotificationCenter.default.post(name: .leftArrow, object: nil)
-                }
-                .keyboardShortcut(.leftArrow, modifiers: [])
-
-                Divider()
-
                 Button("Next Page (Space)") {
                     NotificationCenter.default.post(name: .nextPage, object: nil)
                 }
@@ -129,8 +117,6 @@ extension Notification.Name {
     static let openFolder = Notification.Name("tosho.openFolder")
     static let nextPage = Notification.Name("tosho.nextPage")
     static let previousPage = Notification.Name("tosho.previousPage")
-    static let rightArrow = Notification.Name("tosho.rightArrow")
-    static let leftArrow = Notification.Name("tosho.leftArrow")
     static let toggleDoublePage = Notification.Name("tosho.toggleDoublePage")
     static let toggleReadingDirection = Notification.Name("tosho.toggleReadingDirection")
     static let toggleFullScreen = Notification.Name("tosho.toggleFullScreen")

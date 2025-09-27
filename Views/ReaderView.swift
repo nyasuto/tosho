@@ -273,34 +273,6 @@ struct ReaderView: View {
         ) { _ in
             viewModel.toggleReadingDirection()
         }
-
-        NotificationCenter.default.addObserver(
-            forName: .rightArrow,
-            object: nil,
-            queue: .main
-        ) { _ in
-            if viewModel.readingSettings.readingDirection.isRightToLeft {
-                // 右綴じ：右矢印は戻る
-                viewModel.previousPage()
-            } else {
-                // 左綴じ：右矢印は進む
-                viewModel.nextPage()
-            }
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: .leftArrow,
-            object: nil,
-            queue: .main
-        ) { _ in
-            if viewModel.readingSettings.readingDirection.isRightToLeft {
-                // 右綴じ：左矢印は進む
-                viewModel.nextPage()
-            } else {
-                // 左綴じ：左矢印は戻る
-                viewModel.previousPage()
-            }
-        }
     }
 }
 
