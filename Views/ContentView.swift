@@ -106,19 +106,27 @@ struct WelcomeView: View {
                     InstructionCard(
                         icon: "folder",
                         title: "Open Folder",
-                        shortcut: "⌘⇧O"
+                        shortcut: "⌘⇧O",
+                        description: "Browse image folders"
                     )
 
                     InstructionCard(
                         icon: "doc",
                         title: "Open File",
-                        shortcut: "⌘O"
+                        shortcut: "⌘O",
+                        description: "Select single image"
                     )
                 }
 
                 Text("or drag & drop files here")
                     .font(.caption)
                     .foregroundColor(.secondary)
+
+                // Supported formats info
+                Text("Supports: JPEG, PNG, WebP, HEIC, TIFF, BMP, GIF")
+                    .font(.caption2)
+                    .foregroundColor(.tertiary)
+                    .padding(.top, 5)
             }
             .padding(.top, 20)
         }
@@ -132,15 +140,22 @@ struct InstructionCard: View {
     let icon: String
     let title: String
     let shortcut: String
+    let description: String
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.system(size: 24))
                 .foregroundColor(.accentColor)
 
             Text(title)
                 .font(.caption)
+                .fontWeight(.medium)
+
+            Text(description)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
 
             Text(shortcut)
                 .font(.caption2)
@@ -150,10 +165,11 @@ struct InstructionCard: View {
                 .background(Color.secondary.opacity(0.1))
                 .cornerRadius(4)
         }
-        .frame(width: 100, height: 80)
+        .frame(width: 120, height: 100)
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
+        .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 1)
     }
 }
 
