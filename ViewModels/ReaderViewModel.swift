@@ -10,6 +10,7 @@ import Combine
 
 class ReaderViewModel: ObservableObject {
     @Published var currentImage: NSImage?
+    @Published var secondImage: NSImage?
     @Published var currentPageIndex: Int = 0
     @Published var totalPages: Int = 0
     @Published var isLoading: Bool = false
@@ -22,11 +23,26 @@ class ReaderViewModel: ObservableObject {
     private let cacheSize = 5
 
     var hasNextPage: Bool {
-        currentPageIndex < totalPages - 1
+        if isDoublePageMode {
+            // 見開きモードでは、現在のページ+1が最終ページ未満
+            return currentPageIndex + 1 < totalPages
+        } else {
+            return currentPageIndex < totalPages - 1
+        }
     }
 
     var hasPreviousPage: Bool {
         currentPageIndex > 0
+    }
+
+    // 表紙かどうかを判定（1ページ目は表紙として単独表示）
+    var isCoverPage: Bool {
+        return currentPageIndex == 0
+    }
+
+    // 見開きモードで実際に2ページ表示するかどうか
+    var shouldShowDoublePages: Bool {
+        return isDoublePageMode && !isCoverPage && currentPageIndex + 1 < totalPages
     }
 
     func loadContent(from url: URL) {
@@ -61,9 +77,21 @@ class ReaderViewModel: ObservableObject {
             return
         }
 
+        // 見開きモードで2ページ表示する場合
+        if shouldShowDoublePages {
+            loadDoublePageImages(startIndex: index)
+        } else {
+            loadSinglePageImage(index: index)
+        }
+    }
+
+    private func loadSinglePageImage(index: Int) {
+        guard let document = document else { return }
+
         if let cachedImage = imageCache[index] {
             DispatchQueue.main.async {
                 self.currentImage = cachedImage
+                self.secondImage = nil
                 self.currentPageIndex = index
                 self.isLoading = false
             }
@@ -84,12 +112,67 @@ class ReaderViewModel: ObservableObject {
                 DispatchQueue.main.async {
                     self?.imageCache[index] = image
                     self?.currentImage = image
+                    self?.secondImage = nil
                     self?.currentPageIndex = index
                     self?.isLoading = false
                     self?.cleanCache()
                 }
 
                 self?.preloadNearbyImages(around: index)
+            } catch {
+                DispatchQueue.main.async {
+                    self?.errorMessage = error.localizedDescription
+                    self?.isLoading = false
+                }
+            }
+        }
+    }
+
+    private func loadDoublePageImages(startIndex: Int) {
+        guard let document = document else { return }
+
+        let firstIndex = startIndex
+        let secondIndex = startIndex + 1
+
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            do {
+                // 1ページ目を取得
+                var firstImage: NSImage?
+                if let cached = self?.imageCache[firstIndex] {
+                    firstImage = cached
+                } else {
+                    firstImage = try document.getImage(at: firstIndex)
+                    if let image = firstImage {
+                        DispatchQueue.main.async {
+                            self?.imageCache[firstIndex] = image
+                        }
+                    }
+                }
+
+                // 2ページ目を取得
+                var secondImage: NSImage?
+                if secondIndex < self?.totalPages ?? 0 {
+                    if let cached = self?.imageCache[secondIndex] {
+                        secondImage = cached
+                    } else {
+                        secondImage = try document.getImage(at: secondIndex)
+                        if let image = secondImage {
+                            DispatchQueue.main.async {
+                                self?.imageCache[secondIndex] = image
+                            }
+                        }
+                    }
+                }
+
+                DispatchQueue.main.async {
+                    self?.currentImage = firstImage
+                    self?.secondImage = secondImage
+                    self?.currentPageIndex = firstIndex
+                    self?.isLoading = false
+                    self?.cleanCache()
+                }
+
+                self?.preloadNearbyImages(around: firstIndex)
             } catch {
                 DispatchQueue.main.async {
                     self?.errorMessage = error.localizedDescription
@@ -136,8 +219,19 @@ class ReaderViewModel: ObservableObject {
     func nextPage() {
         guard hasNextPage else { return }
 
-        let step = isDoublePageMode ? 2 : 1
-        let newIndex = min(currentPageIndex + step, totalPages - 1)
+        var newIndex: Int
+        if isDoublePageMode {
+            if isCoverPage {
+                // 表紙から次へ移動する場合、奇数ページ（1ページ目）へ
+                newIndex = 1
+            } else {
+                // 通常の見開きページング（2ページずつ）
+                newIndex = min(currentPageIndex + 2, totalPages - 1)
+            }
+        } else {
+            // 単ページモード
+            newIndex = min(currentPageIndex + 1, totalPages - 1)
+        }
 
         isLoading = true
         loadImageAtIndex(newIndex)
@@ -146,8 +240,19 @@ class ReaderViewModel: ObservableObject {
     func previousPage() {
         guard hasPreviousPage else { return }
 
-        let step = isDoublePageMode ? 2 : 1
-        let newIndex = max(currentPageIndex - step, 0)
+        var newIndex: Int
+        if isDoublePageMode {
+            if currentPageIndex == 1 {
+                // 1ページ目から前へ戻る場合、表紙（0ページ目）へ
+                newIndex = 0
+            } else {
+                // 通常の見開きページング（2ページずつ）
+                newIndex = max(currentPageIndex - 2, 0)
+            }
+        } else {
+            // 単ページモード
+            newIndex = max(currentPageIndex - 1, 0)
+        }
 
         isLoading = true
         loadImageAtIndex(newIndex)
@@ -155,7 +260,17 @@ class ReaderViewModel: ObservableObject {
 
     func toggleDoublePageMode() {
         isDoublePageMode.toggle()
-        loadImageAtIndex(currentPageIndex)
+
+        // モード切り替え時の適切なページ調整
+        var adjustedIndex = currentPageIndex
+        if isDoublePageMode && currentPageIndex > 0 {
+            // 見開きモードに切り替え時、奇数ページ位置に調整
+            if currentPageIndex % 2 == 0 && currentPageIndex > 0 {
+                adjustedIndex = currentPageIndex - 1
+            }
+        }
+
+        loadImageAtIndex(adjustedIndex)
     }
 }
 

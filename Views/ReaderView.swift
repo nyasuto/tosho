@@ -19,7 +19,37 @@ struct ReaderView: View {
                 Color.black
                     .ignoresSafeArea()
 
-                if let image = viewModel.currentImage {
+                if viewModel.shouldShowDoublePages {
+                    // 見開きモード（2ページ表示）
+                    HStack(spacing: 0) {
+                        if let image = viewModel.currentImage {
+                            Image(nsImage: image)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .scaleEffect(currentZoom)
+                                .offset(offset)
+                                .gesture(magnificationGesture)
+                                .gesture(dragGesture)
+                                .onTapGesture(count: 2) {
+                                    resetZoom()
+                                }
+                        }
+
+                        if let secondImage = viewModel.secondImage {
+                            Image(nsImage: secondImage)
+                                .resizable()
+                                .aspectRatio(contentMode: .fit)
+                                .scaleEffect(currentZoom)
+                                .offset(offset)
+                                .gesture(magnificationGesture)
+                                .gesture(dragGesture)
+                                .onTapGesture(count: 2) {
+                                    resetZoom()
+                                }
+                        }
+                    }
+                } else if let image = viewModel.currentImage {
+                    // 単ページモード
                     Image(nsImage: image)
                         .resizable()
                         .aspectRatio(contentMode: .fit)
@@ -90,16 +120,33 @@ struct ReaderView: View {
                 VStack {
                     Spacer()
                     if viewModel.totalPages > 0 {
-                        Text("\(viewModel.currentPageIndex + 1) / \(viewModel.totalPages)")
-                            .font(.caption)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.black.opacity(0.7))
-                            .cornerRadius(8)
-                            .padding(.bottom, 20)
-                            .opacity(viewModel.showControls ? 1 : 0)
-                            .animation(.easeInOut(duration: 0.3), value: viewModel.showControls)
+                        HStack(spacing: 12) {
+                            // ページ番号表示
+                            if viewModel.shouldShowDoublePages {
+                                let endPage = min(viewModel.currentPageIndex + 2, viewModel.totalPages)
+                                Text("\(viewModel.currentPageIndex + 1)-\(endPage) / \(viewModel.totalPages)")
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                            } else {
+                                Text("\(viewModel.currentPageIndex + 1) / \(viewModel.totalPages)")
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                            }
+
+                            // 見開きモード表示インジケーター
+                            if viewModel.isDoublePageMode {
+                                Image(systemName: "rectangle.split.2x1")
+                                    .font(.caption)
+                                    .foregroundColor(.white)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.black.opacity(0.7))
+                        .cornerRadius(8)
+                        .padding(.bottom, 20)
+                        .opacity(viewModel.showControls ? 1 : 0)
+                        .animation(.easeInOut(duration: 0.3), value: viewModel.showControls)
                     }
                 }
             }
@@ -157,6 +204,9 @@ struct ReaderView: View {
             viewModel.nextPage()
         case .leftArrow:
             viewModel.previousPage()
+        case .init(.init("d")), .init(.init("D")):
+            viewModel.toggleDoublePageMode()
+            resetZoom()
         default:
             break
         }
