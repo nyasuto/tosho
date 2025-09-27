@@ -207,6 +207,9 @@ struct ReaderView: View {
                 // アプリがアクティブになった時にフォーカスを設定
                 NSApp.keyWindow?.makeFirstResponder(nil)
             }
+            .sheet(isPresented: $viewModel.showGallery) {
+                ThumbnailGalleryView(viewModel: viewModel)
+            }
         }
     }
 
@@ -276,6 +279,14 @@ struct ReaderView: View {
             queue: .main
         ) { _ in
             viewModel.toggleReadingDirection()
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: .toggleGallery,
+            object: nil,
+            queue: .main
+        ) { _ in
+            viewModel.toggleGallery()
         }
     }
 }

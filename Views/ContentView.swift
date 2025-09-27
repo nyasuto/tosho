@@ -567,17 +567,135 @@ struct RecentFileCard: View {
     }
 }
 
-// MARK: - NSImage Extension
-extension NSImage {
-    func resized(to newSize: CGSize) -> NSImage {
-        let newImage = NSImage(size: newSize)
-        newImage.lockFocus()
-        self.draw(in: NSRect(origin: .zero, size: newSize),
-                  from: NSRect(origin: .zero, size: self.size),
-                  operation: .sourceOver,
-                  fraction: 1.0)
-        newImage.unlockFocus()
-        return newImage
+// MARK: - Thumbnail Gallery View
+struct ThumbnailGalleryView: View {
+    @ObservedObject var viewModel: ReaderViewModel
+    @Environment(\.presentationMode) var presentationMode
+
+    private let columns = [
+        GridItem(.adaptive(minimum: 90, maximum: 110), spacing: 20)
+    ]
+
+    var body: some View {
+        NavigationView {
+            ZStack {
+                Color.black.opacity(0.9)
+                    .ignoresSafeArea()
+
+                ScrollViewReader { proxy in
+                    ScrollView {
+                        LazyVGrid(columns: columns, spacing: 12) {
+                            ForEach(0..<viewModel.totalPages, id: \.self) { pageIndex in
+                                ThumbnailCard(
+                                    pageIndex: pageIndex,
+                                    viewModel: viewModel,
+                                    isCurrentPage: pageIndex == viewModel.currentPageIndex
+                                )
+                                .id(pageIndex)
+                            }
+                        }
+                        .padding(.horizontal, 30)
+                        .padding(.vertical, 20)
+                    }
+                    .onAppear {
+                        // 現在のページにスクロール
+                        withAnimation(.easeInOut(duration: 0.5)) {
+                            proxy.scrollTo(viewModel.currentPageIndex, anchor: .center)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Gallery")
+            .toolbar {
+                ToolbarItem(placement: .navigation) {
+                    Button("Close") {
+                        viewModel.toggleGallery()
+                    }
+                    .keyboardShortcut(.escape, modifiers: [])
+                }
+
+                ToolbarItem(placement: .primaryAction) {
+                    Text("Page \(viewModel.currentPageIndex + 1) of \(viewModel.totalPages)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .onAppear {
+            viewModel.preloadThumbnails()
+        }
     }
 }
+
+// MARK: - Thumbnail Card
+struct ThumbnailCard: View {
+    let pageIndex: Int
+    @ObservedObject var viewModel: ReaderViewModel
+    let isCurrentPage: Bool
+
+    @State private var thumbnail: NSImage?
+    @State private var isHovered = false
+
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray.opacity(0.2))
+                    .frame(width: 90, height: 130)
+
+                if let thumbnail = thumbnail {
+                    Image(nsImage: thumbnail)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: 90, height: 130)
+                        .clipped()
+                        .cornerRadius(8)
+                } else {
+                    VStack {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        Text("Loading...")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                if isCurrentPage {
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.accentColor, lineWidth: 3)
+                }
+            }
+            .scaleEffect(isHovered ? 1.05 : 1.0)
+            .animation(.easeInOut(duration: 0.2), value: isHovered)
+            .onHover { hovering in
+                isHovered = hovering
+            }
+
+            Text("Page \(pageIndex + 1)")
+                .font(.caption)
+                .foregroundColor(isCurrentPage ? .accentColor : .secondary)
+                .fontWeight(isCurrentPage ? .bold : .regular)
+        }
+        .onTapGesture {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                viewModel.jumpToPage(pageIndex)
+            }
+        }
+        .onAppear {
+            loadThumbnail()
+        }
+    }
+
+    private func loadThumbnail() {
+        if let cachedThumbnail = viewModel.getThumbnail(for: pageIndex) {
+            self.thumbnail = cachedThumbnail
+        } else {
+            // ViewModelがバックグラウンドで生成してくれるのを待つ
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.thumbnail = viewModel.getThumbnail(for: pageIndex)
+            }
+        }
+    }
+}
+
 

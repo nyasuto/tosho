@@ -8,6 +8,20 @@
 import SwiftUI
 import Combine
 
+// MARK: - NSImage Extension
+extension NSImage {
+    func resized(to newSize: CGSize) -> NSImage {
+        let newImage = NSImage(size: newSize)
+        newImage.lockFocus()
+        self.draw(in: NSRect(origin: .zero, size: newSize),
+                  from: NSRect(origin: .zero, size: self.size),
+                  operation: .sourceOver,
+                  fraction: 1.0)
+        newImage.unlockFocus()
+        return newImage
+    }
+}
+
 class ReaderViewModel: ObservableObject {
     @Published var currentImage: NSImage?
     @Published var secondImage: NSImage?
@@ -17,12 +31,15 @@ class ReaderViewModel: ObservableObject {
     @Published var errorMessage: String?
     @Published var showControls: Bool = false
     @Published var isDoublePageMode: Bool = false
+    @Published var showGallery: Bool = false
 
     @ObservedObject var readingSettings = ReadingSettings()
 
     private var imageCache: [Int: NSImage] = [:]
+    private var thumbnailCache: [Int: NSImage] = [:]
     private var document: ToshoDocument?
     private let cacheSize = 5
+    private let thumbnailSize = CGSize(width: 90, height: 130)
 
     var hasNextPage: Bool {
         if isDoublePageMode {
@@ -301,6 +318,58 @@ class ReaderViewModel: ObservableObject {
         }
 
         loadImageAtIndex(adjustedIndex)
+    }
+
+    // MARK: - Gallery Functions
+
+    func toggleGallery() {
+        showGallery.toggle()
+    }
+
+    func jumpToPage(_ pageIndex: Int) {
+        guard pageIndex >= 0 && pageIndex < totalPages else { return }
+        showGallery = false
+        isLoading = true
+        loadImageAtIndex(pageIndex)
+    }
+
+    func getThumbnail(for pageIndex: Int) -> NSImage? {
+        // キャッシュから取得
+        if let thumbnail = thumbnailCache[pageIndex] {
+            return thumbnail
+        }
+
+        // バックグラウンドでサムネイル生成
+        generateThumbnail(for: pageIndex)
+        return nil
+    }
+
+    private func generateThumbnail(for pageIndex: Int) {
+        guard pageIndex >= 0 && pageIndex < totalPages,
+              let document = document else { return }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                if let image = try document.getImage(at: pageIndex) {
+                    let thumbnail = image.resized(to: self.thumbnailSize)
+                    DispatchQueue.main.async {
+                        self.thumbnailCache[pageIndex] = thumbnail
+                    }
+                }
+            } catch {
+                DebugLogger.shared.logError(error, context: "Failed to generate thumbnail for page \(pageIndex)")
+            }
+        }
+    }
+
+    func preloadThumbnails() {
+        DispatchQueue.global(qos: .utility).async {
+            for i in 0..<self.totalPages {
+                if self.thumbnailCache[i] == nil {
+                    self.generateThumbnail(for: i)
+                }
+            }
+        }
     }
 }
 
