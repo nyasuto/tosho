@@ -14,17 +14,19 @@ struct ToshoApp: App {
     @StateObject private var favoritesManager = FavoritesManager.shared
 
     var body: some Scene {
+        // 従来のメインウィンドウ（ホーム画面）
         WindowGroup {
             ContentView()
                 .frame(minWidth: 800, idealWidth: 1200, minHeight: 600, idealHeight: 900)
         }
         .windowStyle(.automatic)
         .windowToolbarStyle(.automatic)
+
         .commands {
             // File Menu Commands
             CommandGroup(replacing: .newItem) {
                 Button("Open...") {
-                    openFileOrFolder()
+                    openFileInNewWindow()
                 }
                 .keyboardShortcut("O", modifiers: .command)
 
@@ -41,7 +43,7 @@ struct ToshoApp: App {
 
                     ForEach(favoritesManager.fileHistory.prefix(10)) { item in
                         Button(item.fileName) {
-                            openRecentFile(item.url)
+                            openRecentFileInNewWindow(item.url)
                         }
                     }
 
@@ -104,27 +106,32 @@ struct ToshoApp: App {
         }
     }
 
-    private func openFileOrFolder() {
+
+
+    private func showFavorites() {
+        NotificationCenter.default.post(name: .showFavorites, object: nil)
+    }
+
+    // MARK: - New Window Functions
+
+    private func openFileInNewWindow() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
-        // Use modern allowedContentTypes with custom types for WebP and CBZ
+
         var contentTypes: [UTType] = [
             .jpeg, .png, .gif, .tiff, .bmp, .heic, .zip, .data
         ]
 
-        // Add WebP support
         if let webpType = UTType(filenameExtension: "webp") {
             contentTypes.append(webpType)
         }
 
-        // Add AVIF support
         if let avifType = UTType(filenameExtension: "avif") {
             contentTypes.append(avifType)
         }
 
-        // Add CBZ support
         if let cbzType = UTType(filenameExtension: "cbz") {
             contentTypes.append(cbzType)
         }
@@ -133,42 +140,12 @@ struct ToshoApp: App {
 
         if panel.runModal() == .OK {
             if let url = panel.url {
-                openAndAddToRecent(url)
+                openDocumentInNewWindow(url)
             }
         }
     }
 
-    private func openAndAddToRecent(_ url: URL) {
-        // 選択されたURLの種類を自動判別
-        var isDirectory: ObjCBool = false
-        let exists = FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory)
-
-        if exists {
-            // ファイル履歴に追加
-            favoritesManager.recordFileAccess(url)
-
-            if isDirectory.boolValue {
-                // ディレクトリの場合
-                NotificationCenter.default.post(name: .openFolder, object: url)
-            } else {
-                // ファイルの場合、拡張子でさらに判別
-                let fileExtension = url.pathExtension.lowercased()
-                if fileExtension == "zip" || fileExtension == "cbz" {
-                    // アーカイブファイル
-                    NotificationCenter.default.post(name: .openFile, object: url)
-                } else if ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif", "avif"].contains(fileExtension) {
-                    // 画像ファイル
-                    NotificationCenter.default.post(name: .openFile, object: url)
-                } else {
-                    // その他のファイル（とりあえずファイルとして処理）
-                    NotificationCenter.default.post(name: .openFile, object: url)
-                }
-            }
-        }
-    }
-
-    private func openRecentFile(_ url: URL) {
-        // 履歴からファイルを開く際はセキュリティスコープを処理
+    private func openRecentFileInNewWindow(_ url: URL) {
         favoritesManager.openFileFromHistory(url) { securityScopedURL in
             guard let fileURL = securityScopedURL else {
                 DebugLogger.shared.log("Failed to get security scoped URL for: \(url.lastPathComponent)", category: "ToshoApp")
@@ -176,14 +153,19 @@ struct ToshoApp: App {
             }
 
             DispatchQueue.main.async {
-                NotificationCenter.default.post(name: .recentFileOpened, object: fileURL)
+                self.openDocumentInNewWindow(fileURL)
             }
         }
     }
 
+    private func openDocumentInNewWindow(_ url: URL) {
+        // ファイル履歴に追加
+        favoritesManager.recordFileAccess(url)
 
-    private func showFavorites() {
-        NotificationCenter.default.post(name: .showFavorites, object: nil)
+        // 新しいリーダーウィンドウを開く
+        if let scene = NSApplication.shared.delegate as? AppDelegate {
+            scene.openNewReaderWindow(with: url)
+        }
     }
 }
 
@@ -203,6 +185,32 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         return true
+    }
+
+    func openNewReaderWindow(with url: URL) {
+        DebugLogger.shared.log("Opening new reader window for: \(url.lastPathComponent)", category: "AppDelegate")
+
+        DispatchQueue.main.async {
+            // NSWindowを直接作成してマルチウィンドウを実現
+            let window = NSWindow(
+                contentRect: NSRect(x: 0, y: 0, width: 1200, height: 900),
+                styleMask: [.titled, .closable, .miniaturizable, .resizable],
+                backing: .buffered,
+                defer: false
+            )
+
+            window.title = url.lastPathComponent
+            window.setContentSize(NSSize(width: 1200, height: 900))
+            window.center()
+
+            let readerView = ReaderView(fileURL: url)
+            let hostingView = NSHostingView(rootView: readerView)
+            window.contentView = hostingView
+
+            window.makeKeyAndOrderFront(nil)
+
+            DebugLogger.shared.log("New reader window opened successfully", category: "AppDelegate")
+        }
     }
 }
 

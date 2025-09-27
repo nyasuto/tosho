@@ -10,20 +10,15 @@ import AppKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
-    @State private var selectedFileURL: URL?
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingFavorites = false
 
     var body: some View {
         ZStack {
-            if let url = selectedFileURL {
-                ReaderView(fileURL: url)
-            } else {
-                WelcomeView(
-                    onOpen: openFileOrFolder
-                )
-            }
+            WelcomeView(
+                onOpen: openFileOrFolder
+            )
 
             if isLoading {
                 ProgressView()
@@ -62,7 +57,7 @@ struct ContentView: View {
             queue: .main
         ) { notification in
             if let url = notification.object as? URL {
-                selectedFileURL = url
+                self.openInNewWindow(url)
             }
         }
 
@@ -72,7 +67,7 @@ struct ContentView: View {
             queue: .main
         ) { notification in
             if let url = notification.object as? URL {
-                selectedFileURL = url
+                self.openInNewWindow(url)
             }
         }
 
@@ -82,7 +77,7 @@ struct ContentView: View {
             queue: .main
         ) { notification in
             if let url = notification.object as? URL {
-                selectedFileURL = url
+                self.openInNewWindow(url)
             }
         }
 
@@ -114,7 +109,7 @@ struct ContentView: View {
             }
 
             DispatchQueue.main.async {
-                self.selectedFileURL = url
+                self.openInNewWindow(url)
             }
         }
     }
@@ -148,7 +143,16 @@ struct ContentView: View {
         panel.allowedContentTypes = contentTypes
 
         if panel.runModal() == .OK {
-            selectedFileURL = panel.url
+            if let url = panel.url {
+                // 新しいウィンドウで開く
+                openInNewWindow(url)
+            }
+        }
+    }
+
+    private func openInNewWindow(_ url: URL) {
+        if let appDelegate = NSApplication.shared.delegate as? AppDelegate {
+            appDelegate.openNewReaderWindow(with: url)
         }
     }
 }

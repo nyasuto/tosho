@@ -14,6 +14,7 @@ enum ContentType {
     case archive(URL, [String])
 }
 
+
 class ToshoDocument: ObservableObject {
     @Published var contentType: ContentType?
     @Published var totalPages: Int = 0
