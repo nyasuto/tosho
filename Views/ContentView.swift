@@ -20,8 +20,7 @@ struct ContentView: View {
                 ReaderView(fileURL: url)
             } else {
                 WelcomeView(
-                    onOpenFile: openFile,
-                    onOpenFolder: openFolder
+                    onOpen: openFileOrFolder
                 )
             }
 
@@ -90,15 +89,15 @@ struct ContentView: View {
         }
     }
 
-    private func openFile() {
+    private func openFileOrFolder() {
         let panel = NSOpenPanel()
         panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = false
+        panel.canChooseDirectories = true
         panel.canChooseFiles = true
 
         // Use modern allowedContentTypes with custom types for WebP and CBZ
         var contentTypes: [UTType] = [
-            .jpeg, .png, .gif, .tiff, .bmp, .heic, .zip
+            .jpeg, .png, .gif, .tiff, .bmp, .heic, .zip, .data
         ]
 
         // Add WebP support
@@ -122,23 +121,11 @@ struct ContentView: View {
             selectedFileURL = panel.url
         }
     }
-
-    private func openFolder() {
-        let panel = NSOpenPanel()
-        panel.allowsMultipleSelection = false
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-
-        if panel.runModal() == .OK {
-            selectedFileURL = panel.url
-        }
-    }
 }
 
 // MARK: - Welcome View
 struct WelcomeView: View {
-    let onOpenFile: () -> Void
-    let onOpenFolder: () -> Void
+    let onOpen: () -> Void
 
     var body: some View {
         VStack(spacing: 30) {
@@ -154,27 +141,15 @@ struct WelcomeView: View {
                 .foregroundColor(.secondary)
 
             VStack(spacing: 15) {
-                HStack(spacing: 20) {
-                    Button(action: onOpenFolder) {
-                        InstructionCard(
-                            icon: "folder",
-                            title: "Open Folder",
-                            shortcut: "⌘⇧O",
-                            description: "Browse image folders"
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
-
-                    Button(action: onOpenFile) {
-                        InstructionCard(
-                            icon: "doc",
-                            title: "Open File",
-                            shortcut: "⌘O",
-                            description: "Select single image"
-                        )
-                    }
-                    .buttonStyle(PlainButtonStyle())
+                Button(action: onOpen) {
+                    InstructionCard(
+                        icon: "folder.badge.plus",
+                        title: "Open...",
+                        shortcut: "⌘O",
+                        description: "Select files or folders\n(auto-detected)"
+                    )
                 }
+                .buttonStyle(PlainButtonStyle())
 
                 Text("or drag & drop files here")
                     .font(.caption)
@@ -192,6 +167,10 @@ struct WelcomeView: View {
                         .foregroundColor(.secondary)
 
                     Text("アーカイブ: .zip, .cbz")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+
+                    Text("フォルダ: 画像ファイルを含むディレクトリ")
                         .font(.caption2)
                         .foregroundColor(.secondary)
                 }
@@ -236,7 +215,7 @@ struct InstructionCard: View {
                 .background(Color.secondary.opacity(0.1))
                 .cornerRadius(4)
         }
-        .frame(width: 120, height: 100)
+        .frame(width: 160, height: 120)
         .padding()
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
@@ -260,8 +239,7 @@ struct ContentView_Previews: PreviewProvider {
 struct WelcomeView_Previews: PreviewProvider {
     static var previews: some View {
         WelcomeView(
-            onOpenFile: { print("Open File") },
-            onOpenFolder: { print("Open Folder") }
+            onOpen: { print("Open") }
         )
         .frame(width: 1200, height: 900)
     }
