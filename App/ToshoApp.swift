@@ -168,7 +168,17 @@ struct ToshoApp: App {
     }
 
     private func openRecentFile(_ url: URL) {
-        openAndAddToRecent(url)
+        // 履歴からファイルを開く際はセキュリティスコープを処理
+        favoritesManager.openFileFromHistory(url) { securityScopedURL in
+            guard let fileURL = securityScopedURL else {
+                DebugLogger.shared.log("Failed to get security scoped URL for: \(url.lastPathComponent)", category: "ToshoApp")
+                return
+            }
+
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .recentFileOpened, object: fileURL)
+            }
+        }
     }
 
 
