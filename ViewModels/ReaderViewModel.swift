@@ -7,6 +7,124 @@
 
 import SwiftUI
 import Combine
+import Foundation
+
+// MARK: - High Performance Image Cache
+class ImageCache {
+    static let shared = ImageCache()
+
+    // Memory cache (fast, small)
+    private let memoryCache = NSCache<NSString, NSImage>()
+
+    // Disk cache (large, slower)
+    private let diskCacheURL: URL
+    private let diskCacheQueue = DispatchQueue(label: "com.tosho.diskcache", qos: .utility)
+
+    // LRU tracking for disk cache
+    private var accessOrder: [String] = []
+    private let maxDiskItems = 50
+
+    private init() {
+        // Setup memory cache
+        memoryCache.totalCostLimit = 200 * 1024 * 1024 // 200MB limit
+        memoryCache.countLimit = 50 // Max 50 images in memory
+
+        // Setup disk cache directory
+        let cacheDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first!
+        diskCacheURL = cacheDir.appendingPathComponent("com.tosho.imagecache")
+        try? FileManager.default.createDirectory(at: diskCacheURL, withIntermediateDirectories: true)
+
+        DebugLogger.shared.log("ImageCache initialized with memory limit: 200MB, disk cache: \(diskCacheURL.path)", category: "ImageCache")
+    }
+
+    func setImage(_ image: NSImage, forKey key: String) {
+        // Store in memory cache
+        let cost = Int(image.size.width * image.size.height * 4) // Estimate 4 bytes per pixel
+        memoryCache.setObject(image, forKey: key as NSString, cost: cost)
+
+        // Store in disk cache asynchronously
+        diskCacheQueue.async { [weak self] in
+            self?.storeToDisk(image: image, key: key)
+        }
+    }
+
+    func image(forKey key: String) -> NSImage? {
+        // Try memory cache first
+        if let cachedImage = memoryCache.object(forKey: key as NSString) {
+            DebugLogger.shared.log("Cache hit (memory): \(key)", category: "ImageCache")
+            return cachedImage
+        }
+
+        // Try disk cache
+        if let diskImage = loadFromDisk(key: key) {
+            DebugLogger.shared.log("Cache hit (disk): \(key)", category: "ImageCache")
+            // Promote to memory cache
+            let cost = Int(diskImage.size.width * diskImage.size.height * 4)
+            memoryCache.setObject(diskImage, forKey: key as NSString, cost: cost)
+            return diskImage
+        }
+
+        DebugLogger.shared.log("Cache miss: \(key)", category: "ImageCache")
+        return nil
+    }
+
+    private func storeToDisk(image: NSImage, key: String) {
+        guard let tiffData = image.tiffRepresentation,
+              let bitmapRep = NSBitmapImageRep(data: tiffData),
+              let pngData = bitmapRep.representation(using: .png, properties: [:]) else {
+            return
+        }
+
+        let fileURL = diskCacheURL.appendingPathComponent("\(key).png")
+
+        do {
+            try pngData.write(to: fileURL)
+            updateAccessOrder(key: key)
+            cleanupDiskCacheIfNeeded()
+        } catch {
+            DebugLogger.shared.logError(error, context: "Failed to store image to disk cache: \(key)")
+        }
+    }
+
+    private func loadFromDisk(key: String) -> NSImage? {
+        let fileURL = diskCacheURL.appendingPathComponent("\(key).png")
+        guard let image = NSImage(contentsOf: fileURL) else { return nil }
+
+        updateAccessOrder(key: key)
+        return image
+    }
+
+    private func updateAccessOrder(key: String) {
+        accessOrder.removeAll { $0 == key }
+        accessOrder.append(key)
+    }
+
+    private func cleanupDiskCacheIfNeeded() {
+        guard accessOrder.count > maxDiskItems else { return }
+
+        let itemsToRemove = accessOrder.count - maxDiskItems
+        let keysToRemove = Array(accessOrder.prefix(itemsToRemove))
+
+        for key in keysToRemove {
+            let fileURL = diskCacheURL.appendingPathComponent("\(key).png")
+            try? FileManager.default.removeItem(at: fileURL)
+        }
+
+        accessOrder.removeFirst(itemsToRemove)
+        DebugLogger.shared.log("Cleaned up \(itemsToRemove) items from disk cache", category: "ImageCache")
+    }
+
+    func clearCache() {
+        memoryCache.removeAllObjects()
+        diskCacheQueue.async { [weak self] in
+            guard let self = self else { return }
+            try? FileManager.default.removeItem(at: self.diskCacheURL)
+            try? FileManager.default.createDirectory(at: self.diskCacheURL, withIntermediateDirectories: true)
+            self.accessOrder.removeAll()
+        }
+        DebugLogger.shared.log("All caches cleared", category: "ImageCache")
+    }
+}
 
 // MARK: - NSImage Extension
 extension NSImage {
@@ -36,12 +154,20 @@ class ReaderViewModel: ObservableObject {
 
     @ObservedObject var readingSettings = ReadingSettings()
 
-    private var allImages: [NSImage] = [] // 全画像を事前ロード
+    // High-performance caching system
+    private let imageCache = ImageCache.shared
+    private var allImages: [NSImage] = [] // Fallback: 全画像を事前ロード
     private var thumbnailCache: [Int: NSImage] = [:]
     private let document = ToshoDocument() // 再利用されるdocumentインスタンス
     private let thumbnailSize = CGSize(width: 90, height: 130)
     private let favoritesManager = FavoritesManager.shared
-    private var preloadTask: Task<Void, Never>? // 事前ロードタスク
+
+    // Smart preloading system
+    private var smartPreloadTask: Task<Void, Never>?
+    private var preloadTask: Task<Void, Never>? // Legacy: 全画像プリロード用
+    private var currentPreloadRange: Range<Int> = 0..<0
+    private let preloadQueue = DispatchQueue(label: "com.tosho.preload", qos: .userInitiated, attributes: .concurrent)
+    private let maxConcurrentPreloads = 3
     private var currentFileURL: URL? // セキュリティスコープ管理用
 
     deinit {
@@ -51,6 +177,7 @@ class ReaderViewModel: ObservableObject {
         if let fileURL = currentFileURL {
             favoritesManager.stopAccessingFileFromHistory(fileURL)
         }
+        smartPreloadTask?.cancel()
         preloadTask?.cancel()
 
         // 画像キャッシュをクリア
@@ -81,6 +208,109 @@ class ReaderViewModel: ObservableObject {
     // 見開きモードで実際に2ページ表示するかどうか
     var shouldShowDoublePages: Bool {
         return isDoublePageMode && !isCoverPage && currentPageIndex + 1 < totalPages
+    }
+
+    // MARK: - Smart Preloading System
+
+    private func startSmartPreload(around currentIndex: Int) {
+        // Cancel previous preload task
+        smartPreloadTask?.cancel()
+
+        // Calculate preload range based on reading direction
+        let preloadRadius = 2
+        let startIndex = max(0, currentIndex - preloadRadius)
+        let endIndex = min(totalPages, currentIndex + preloadRadius + 1)
+        let newRange = startIndex..<endIndex
+
+        // Skip if range hasn't changed
+        guard newRange != currentPreloadRange else { return }
+        currentPreloadRange = newRange
+
+        DebugLogger.shared.log("Starting smart preload: range \(startIndex)..<\(endIndex)", category: "ReaderViewModel")
+
+        smartPreloadTask = Task { [weak self] in
+            await self?.preloadImagesInRange(newRange, priorityIndex: currentIndex)
+        }
+    }
+
+    private func preloadImagesInRange(_ range: Range<Int>, priorityIndex: Int) async {
+        guard !Task.isCancelled else { return }
+
+        // Create cache keys for all images in range
+        let indices = Array(range)
+        let prioritizedIndices = indices.sorted { abs($0 - priorityIndex) < abs($1 - priorityIndex) }
+
+        await withTaskGroup(of: Void.self) { group in
+            var activeTaskCount = 0
+
+            for index in prioritizedIndices {
+                // Limit concurrent tasks
+                if activeTaskCount >= maxConcurrentPreloads {
+                    await group.next() // Wait for one to complete
+                    activeTaskCount -= 1
+                }
+
+                group.addTask { [weak self] in
+                    guard let self = self, !Task.isCancelled else { return }
+                    await self.preloadSingleImage(at: index)
+                }
+                activeTaskCount += 1
+            }
+        }
+
+        DebugLogger.shared.log("Smart preload completed for range: \(range)", category: "ReaderViewModel")
+    }
+
+    private func preloadSingleImage(at index: Int) async {
+        guard index >= 0 && index < totalPages else { return }
+
+        let cacheKey = generateCacheKey(for: index)
+
+        // Check if already cached
+        if imageCache.image(forKey: cacheKey) != nil {
+            return // Already cached
+        }
+
+        // Load image in background
+        do {
+            if let image = try document.getImage(at: index) {
+                await MainActor.run {
+                    imageCache.setImage(image, forKey: cacheKey)
+                    DebugLogger.shared.log("Preloaded image at index \(index)", category: "ReaderViewModel")
+                }
+            }
+        } catch {
+            DebugLogger.shared.logError(error, context: "Failed to preload image at index \(index)")
+        }
+    }
+
+    private func generateCacheKey(for index: Int) -> String {
+        guard let fileURL = currentFileURL else { return "unknown_\(index)" }
+        let fileName = fileURL.lastPathComponent
+        return "\(fileName)_\(index)"
+    }
+
+    // MARK: - Enhanced Image Loading
+
+    private func loadImageWithCache(at index: Int) -> NSImage? {
+        let cacheKey = generateCacheKey(for: index)
+
+        // Try cache first
+        if let cachedImage = imageCache.image(forKey: cacheKey) {
+            return cachedImage
+        }
+
+        // Load from document and cache
+        do {
+            if let image = try document.getImage(at: index) {
+                imageCache.setImage(image, forKey: cacheKey)
+                return image
+            }
+        } catch {
+            DebugLogger.shared.logError(error, context: "Failed to load image at index \(index)")
+        }
+
+        return nil
     }
 
     func loadContent(from url: URL) {
@@ -117,8 +347,9 @@ class ReaderViewModel: ObservableObject {
                     if case .archive = self.document.contentType {
                         self.preloadAllImages()
                     } else {
-                        // フォルダや単一画像の場合は従来通り
+                        // フォルダや単一画像の場合は従来通り + smart preloading
                         self.loadImageAtIndex(0)
+                        self.startSmartPreload(around: 0)
                     }
                 }
             } catch {
@@ -227,66 +458,67 @@ class ReaderViewModel: ObservableObject {
     }
 
     private func loadSinglePageImage(index: Int) {
+        // Try cache first for non-preloaded content (folder/single image mode)
+        if let cachedImage = loadImageWithCache(at: index) {
+            currentImage = cachedImage
+            secondImage = nil
+            currentPageIndex = index
+            isLoading = false
+            return
+        }
 
-        // 全画像プリロード方式では古いキャッシュシステムは使用しない
-
+        // Fallback to async loading if not cached
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            do {
-                guard let self = self,
-                      let image = try self.document.getImage(at: index) else {
-                    DispatchQueue.main.async {
-                        self?.errorMessage = "Unable to load image at index \(index)"
-                        self?.isLoading = false
-                    }
-                    return
-                }
+            guard let self = self else { return }
 
+            if let image = self.loadImageWithCache(at: index) {
                 DispatchQueue.main.async {
-                    // 全画像プリロード方式では古いキャッシュシステムは使用しない
                     self.currentImage = image
                     self.secondImage = nil
                     self.currentPageIndex = index
                     self.isLoading = false
-                    // 全画像プリロード方式ではキャッシュクリーンアップ不要
                 }
-
-                // 全画像プリロード方式では不要
-            } catch {
-                DispatchQueue.main.async { [weak self] in
-                    self?.errorMessage = error.localizedDescription
-                    self?.isLoading = false
+            } else {
+                DispatchQueue.main.async {
+                    self.errorMessage = "Unable to load image at index \(index)"
+                    self.isLoading = false
                 }
             }
         }
     }
 
     private func loadDoublePageImages(startIndex: Int) {
-
         let firstIndex = startIndex
         let secondIndex = startIndex + 1
 
+        // Try cache first for non-preloaded content (folder/single image mode)
+        let firstImage = loadImageWithCache(at: firstIndex)
+        let secondImage = secondIndex < totalPages ? loadImageWithCache(at: secondIndex) : nil
+
+        if let firstImage = firstImage {
+            currentImage = firstImage
+            self.secondImage = secondImage
+            currentPageIndex = firstIndex
+            isLoading = false
+            return
+        }
+
+        // Fallback to async loading if not cached
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            do {
-                guard let self = self else { return }
-                // 1ページ目を取得
-                let firstImage = try self.document.getImage(at: firstIndex)
+            guard let self = self else { return }
 
-                // 2ページ目を取得
-                var secondImage: NSImage?
-                if secondIndex < self.totalPages {
-                    secondImage = try self.document.getImage(at: secondIndex)
-                }
+            let firstImage = self.loadImageWithCache(at: firstIndex)
+            let secondImage = secondIndex < self.totalPages ? self.loadImageWithCache(at: secondIndex) : nil
 
-                DispatchQueue.main.async {
+            DispatchQueue.main.async {
+                if let firstImage = firstImage {
                     self.currentImage = firstImage
                     self.secondImage = secondImage
                     self.currentPageIndex = firstIndex
                     self.isLoading = false
-                }
-            } catch {
-                DispatchQueue.main.async { [weak self] in
-                    self?.errorMessage = error.localizedDescription
-                    self?.isLoading = false
+                } else {
+                    self.errorMessage = "Unable to load images at index \(firstIndex)"
+                    self.isLoading = false
                 }
             }
         }
@@ -318,6 +550,9 @@ class ReaderViewModel: ObservableObject {
             isLoading = true
             loadImageAtIndex(newIndex)
         }
+
+        // Smart preloading trigger
+        startSmartPreload(around: newIndex)
     }
 
     func previousPage() {
@@ -344,6 +579,9 @@ class ReaderViewModel: ObservableObject {
             isLoading = true
             loadImageAtIndex(newIndex)
         }
+
+        // Smart preloading trigger
+        startSmartPreload(around: newIndex)
     }
 
     // 右から左に読む場合のページ移動
@@ -465,6 +703,9 @@ class ReaderViewModel: ObservableObject {
             isLoading = true
             loadImageAtIndex(pageIndex)
         }
+
+        // Smart preloading trigger
+        startSmartPreload(around: pageIndex)
     }
 
     func getThumbnail(for pageIndex: Int) -> NSImage? {
