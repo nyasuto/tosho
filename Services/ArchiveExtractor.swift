@@ -14,6 +14,22 @@ import os.log
 import ZIPFoundation
 #endif
 
+// MARK: - Range Extension for Safe Clamping
+extension Range where Bound: Comparable {
+    /// Clamps the range to the given bounds
+    func clamped(to bounds: Range) -> Range {
+        let lowerBound = Swift.max(self.lowerBound, bounds.lowerBound)
+        let upperBound = Swift.min(self.upperBound, bounds.upperBound)
+
+        if lowerBound >= upperBound {
+            // Return an empty range if bounds don't overlap
+            return bounds.lowerBound..<bounds.lowerBound
+        }
+
+        return lowerBound..<upperBound
+    }
+}
+
 /// セキュリティスコープのアクセス権限を安全に管理するヘルパー関数
 func withSecurityScope<T>(_ url: URL, _ work: () throws -> T) rethrows -> T {
     let ok = url.startAccessingSecurityScopedResource()
@@ -132,6 +148,13 @@ class ZIPFoundationExtractor {
     func extractImagesInRange(_ range: Range<Int>, from archiveURL: URL, imageList: [String]) async throws -> [Int: NSImage] {
         let maxConcurrentTasks = 4 // Optimal concurrency limit
 
+        // Validate range against imageList bounds
+        let validRange = range.clamped(to: 0..<imageList.count)
+        guard !validRange.isEmpty else {
+            DebugLogger.shared.log("ZIPFoundation: Empty or invalid range for extraction", category: "ZIPFoundationExtractor")
+            return [:]
+        }
+
         // Setup archive access with security scope
         let (archive, entries) = try withSecurityScope(archiveURL) {
             let archive = try getArchive(for: archiveURL)
@@ -139,24 +162,31 @@ class ZIPFoundationExtractor {
             return (archive, entries)
         }
 
-        return try await withThrowingTaskGroup(of: (Int, NSImage).self) { group in
+        return try await withThrowingTaskGroup(of: (Int, NSImage)?.self) { group in
                 var activeTasks = 0
                 var results: [Int: NSImage] = [:]
 
-                for index in range {
+                for index in validRange {
                     // Limit concurrent tasks for optimal memory usage
                     if activeTasks >= maxConcurrentTasks {
-                        if let (completedIndex, image) = try await group.next() {
-                            results[completedIndex] = image
+                        if let result = try await group.next() {
+                            if let (completedIndex, image) = result {
+                                results[completedIndex] = image
+                            }
                             activeTasks -= 1
                         }
                     }
 
-                    // Add new task if within bounds
-                    if index < imageList.count {
-                        let imageName = imageList[index]
-                        group.addTask { [weak self] in
-                            guard let self = self else { throw ArchiveError.imageLoadFailed }
+                    // Double-check bounds before processing
+                    guard index >= 0 && index < imageList.count else {
+                        DebugLogger.shared.log("ZIPFoundation: Skipping out-of-bounds index \(index)", category: "ZIPFoundationExtractor")
+                        continue
+                    }
+
+                    let imageName = imageList[index]
+                    group.addTask { [weak self] in
+                        guard let self = self else { return nil }
+                        do {
                             let image = try await self.extractSingleImageConcurrent(
                                 at: index,
                                 imageName: imageName,
@@ -164,15 +194,20 @@ class ZIPFoundationExtractor {
                                 entries: entries
                             )
                             return (index, image)
+                        } catch {
+                            DebugLogger.shared.logError(error, context: "Failed to extract image at index \(index): \(imageName)")
+                            return nil
                         }
-                        activeTasks += 1
                     }
+                    activeTasks += 1
                 }
 
                 // Wait for remaining tasks
                 while activeTasks > 0 {
-                    if let (completedIndex, image) = try await group.next() {
-                        results[completedIndex] = image
+                    if let result = try await group.next() {
+                        if let (completedIndex, image) = result {
+                            results[completedIndex] = image
+                        }
                         activeTasks -= 1
                     }
                 }
@@ -246,6 +281,11 @@ class ZIPFoundationExtractor {
     func preloadImagesInRange(_ range: Range<Int>, from archiveURL: URL, imageList: [String], priorityIndex: Int? = nil) async throws -> [Int: NSImage] {
         let indices = Array(range)
 
+        // Early return if no indices to process
+        guard !indices.isEmpty else {
+            return [:]
+        }
+
         // Sort by priority if specified (closest to priority index first)
         let sortedIndices: [Int]
         if let priorityIndex = priorityIndex {
@@ -254,7 +294,12 @@ class ZIPFoundationExtractor {
             sortedIndices = indices
         }
 
-        let prioritizedRange = sortedIndices.first!..<(sortedIndices.last! + 1)
+        // Safely create the prioritized range
+        guard let first = sortedIndices.first, let last = sortedIndices.last else {
+            return [:]
+        }
+
+        let prioritizedRange = first..<(last + 1)
         return try await extractImagesInRange(prioritizedRange, from: archiveURL, imageList: imageList)
     }
 
