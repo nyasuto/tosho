@@ -24,18 +24,18 @@
 
 ## コア機能要件
 
-### Phase 1: MVP（最小限の動作）
-- [ ] 単一画像ファイルの表示（JPEG, PNG, WEBP）
-- [ ] 基本的なウィンドウ管理
-- [ ] キーボードでのページ送り（←→キー）
-- [ ] フォルダ内画像の連続表示
+### Phase 1: MVP（最小限の動作） ✅ 完了
+- [x] 単一画像ファイルの表示（JPEG, PNG, WEBP, HEIC, TIFF, BMP, GIF, AVIF）
+- [x] 基本的なウィンドウ管理
+- [x] キーボードでのページ送り（Space, Shift+Space）
+- [x] フォルダ内画像の連続表示
 
-### Phase 2: 基本機能
-- [ ] ZIP/CBZ形式の読み込み
+### Phase 2: 基本機能 ✅ 完了
+- [x] ZIP/CBZ形式の読み込み
 - [ ] RAR/CBR形式の読み込み
-- [ ] 見開き表示モード（2ページ表示）
-- [ ] 右綴じ/左綴じ切り替え
-- [ ] トラックパッドジェスチャー対応
+- [x] 見開き表示モード（2ページ表示）
+- [x] 右綴じ/左綴じ切り替え
+- [x] トラックパッドジェスチャー対応（ズーム/パン）
 - [ ] フルスクリーン表示
 
 ### Phase 3: UI/UX改善
@@ -56,35 +56,25 @@
 ```
 Tosho/
 ├── Tosho.xcodeproj
-├── Tosho/
-│   ├── App/
-│   │   ├── ToshoApp.swift
-│   │   └── Info.plist
-│   ├── Views/
-│   │   ├── ContentView.swift
-│   │   ├── ReaderView.swift
-│   │   ├── ThumbnailView.swift
-│   │   ├── LibraryView.swift
-│   │   └── SettingsView.swift
-│   ├── ViewModels/
-│   │   ├── ReaderViewModel.swift
-│   │   └── LibraryViewModel.swift
-│   ├── Models/
-│   │   ├── ToshoDocument.swift
-│   │   ├── Page.swift
-│   │   └── ReadingProgress.swift
-│   ├── Services/
-│   │   ├── FileLoader.swift
-│   │   ├── ImageCache.swift
-│   │   └── ArchiveExtractor.swift
-│   ├── Resources/
-│   │   ├── Assets.xcassets
-│   │   └── Tosho.iconset/
-│   └── Localization/
-│       ├── ja.lproj/
-│       └── en.lproj/
-├── Tests/
-│   └── ToshoTests/
+├── Makefile                    # 開発効率化ツール
+├── App/
+│   └── ToshoApp.swift         # メインアプリ + Commands定義
+├── Views/
+│   ├── ContentView.swift      # メインビュー
+│   ├── ReaderView.swift       # 画像表示・ページング機能
+│   └── KeyboardShortcutView.swift
+├── ViewModels/
+│   └── ReaderViewModel.swift  # MVVM アーキテクチャ
+├── Models/
+│   ├── ToshoDocument.swift    # ドキュメント管理
+│   ├── ReadingDirection.swift # 読み方向設定
+│   └── ReadingSettings.swift  # 読書設定
+├── Services/
+│   └── ArchiveExtractor.swift # ZIP/CBZ展開
+├── Utilities/
+│   └── DebugLogger.swift      # ログシステム
+├── Resources/
+│   └── Assets.xcassets
 └── README.md
 ```
 
@@ -105,10 +95,12 @@ Tosho/
 ### 操作体系
 | 操作 | キーボード | トラックパッド | メニュー |
 |------|------------|----------------|----------|
-| 次のページ | → / Space | 左スワイプ | View > Next Page |
-| 前のページ | ← | 右スワイプ | View > Previous Page |
-| 見開き切替 | D | ダブルタップ | View > Double Page |
-| フルスクリーン | Cmd+F | - | View > Full Screen |
+| 次のページ | Space | 左スワイプ | View > Next Page (Space) |
+| 前のページ | Shift+Space | 右スワイプ | View > Previous Page (Shift+Space) |
+| 見開き切替 | D | ダブルタップ | View > Toggle Double Page |
+| 読み方向切替 | R | - | View > Toggle Reading Direction |
+| ファイル/フォルダを開く | Cmd+O | - | File > Open... |
+| フルスクリーン | Cmd+Ctrl+F | - | View > Toggle Full Screen |
 | Toshoギャラリー | Cmd+T | 3本指ピンチ | View > Gallery |
 | Toshoライブラリ | Cmd+L | - | Window > Library |
 
@@ -129,9 +121,13 @@ Tosho/
 
 ### ビルド＆実行
 ```bash
-# コマンドラインビルド
-xcodebuild -scheme Tosho build
+# 開発効率化ツールを使用
+make help           # 利用可能なコマンドを表示
+make quality        # 品質チェック（SwiftLint + 構文チェック）
+make lint           # SwiftLintのみ実行
 
+# 従来の方法
+xcodebuild -scheme Tosho build
 # または Xcode で Cmd+R
 ```
 
@@ -192,4 +188,29 @@ xcodebuild -scheme Tosho build
 ---
 
 **Tosho** - 洗練された読書体験をあなたのMacに  
-最終更新: 2025年1月
+## 実装済み機能
+
+### 画像表示エンジン ✅
+- 対応形式: JPEG, PNG, WEBP, HEIC, TIFF, BMP, GIF, AVIF
+- 高性能画像キャッシュシステム
+- スムーズなズーム・パン操作
+
+### アーカイブ処理 ✅
+- ZIP/CBZ形式の自動展開・表示
+- 詳細ログシステムによるデバッグ対応
+- 自動ファイル判別機能
+
+### 読書体験 ✅
+- 見開き/単ページ表示切り替え
+- 右綴じ/左綴じ読み方向対応
+- 直感的なキーボードショートカット
+- 統合ファイル/フォルダオープン
+
+### 開発ツール ✅
+- Makefile による開発効率化
+- SwiftLint による品質管理
+- 継続的インテグレーション対応
+
+---
+
+最終更新: 2025年9月27日
