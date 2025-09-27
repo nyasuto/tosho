@@ -86,7 +86,7 @@ check-syntax: ## Basic syntax checks
 	@python3 -c "import yaml; yaml.safe_load(open('.github/dependabot.yml'))" && echo "✓ Dependabot YAML syntax OK"
 	@find . -name "*.swift" -print0 | xargs -0 -I {} bash -c 'head -1 "{}" > /dev/null' && echo "✓ All Swift files readable"
 
-quality: check-syntax build ## Run all quality checks
+quality: lint build ## Run all quality checks
 	@echo "All quality checks completed!"
 
 run: build ## Build and run the application
