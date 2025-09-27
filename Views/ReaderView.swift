@@ -12,7 +12,6 @@ struct ReaderView: View {
     @StateObject private var viewModel = ReaderViewModel()
     @State private var currentZoom: CGFloat = 1.0
     @State private var offset: CGSize = .zero
-    private let recentFilesManager = RecentFilesManager.shared
 
     var body: some View {
         GeometryReader { _ in
@@ -214,9 +213,6 @@ struct ReaderView: View {
             .onAppear {
                 viewModel.loadContent(from: fileURL)
                 setupNotificationObservers()
-
-                // Add to recent files when content is loaded
-                recentFilesManager.addRecentFile(fileURL)
             }
             .onHover { hovering in
                 viewModel.showControls = hovering
