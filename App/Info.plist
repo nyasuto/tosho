@@ -116,6 +116,18 @@
         </dict>
         <dict>
             <key>CFBundleTypeName</key>
+            <string>AVIF Image</string>
+            <key>CFBundleTypeIconFile</key>
+            <string>AppIcon</string>
+            <key>CFBundleTypeRole</key>
+            <string>Viewer</string>
+            <key>CFBundleTypeExtensions</key>
+            <array>
+                <string>avif</string>
+            </array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key>
             <string>ZIP Archive</string>
             <key>CFBundleTypeIconFile</key>
             <string>AppIcon</string>

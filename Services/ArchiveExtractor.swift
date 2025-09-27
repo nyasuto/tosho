@@ -9,7 +9,7 @@ import Foundation
 import AppKit
 
 class ArchiveExtractor {
-    private let supportedImageExtensions = ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif"]
+    private let supportedImageExtensions = ["jpg", "jpeg", "png", "webp", "heic", "tiff", "bmp", "gif", "avif"]
     private let tempDirectory: URL
 
     init() {
