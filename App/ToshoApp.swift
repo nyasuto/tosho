@@ -55,41 +55,35 @@ struct ToshoApp: App {
                 }
             }
 
-            // View Menu Commands
+            // View Menu Commands（キーボードショートカットは各ウィンドウで処理）
             CommandMenu("View") {
                 Button("Next Page (Space)") {
-                    NotificationCenter.default.post(name: .nextPage, object: nil)
+                    // キーボードショートカットは各ReaderViewで処理
                 }
-                .keyboardShortcut(.space, modifiers: [])
 
                 Button("Previous Page (Shift+Space)") {
-                    NotificationCenter.default.post(name: .previousPage, object: nil)
+                    // キーボードショートカットは各ReaderViewで処理
                 }
-                .keyboardShortcut(.space, modifiers: .shift)
 
                 Divider()
 
-                Button("Adjust Forward (+)") {
-                    NotificationCenter.default.post(name: .adjustPageForward, object: nil)
+                Button("Adjust Forward (→)") {
+                    // キーボードショートカットは各ReaderViewで処理
                 }
-                .keyboardShortcut("+", modifiers: [])
 
-                Button("Adjust Backward (-)") {
-                    NotificationCenter.default.post(name: .adjustPageBackward, object: nil)
+                Button("Adjust Backward (←)") {
+                    // キーボードショートカットは各ReaderViewで処理
                 }
-                .keyboardShortcut("-", modifiers: [])
 
                 Divider()
 
-                Button("Toggle Double Page") {
-                    NotificationCenter.default.post(name: .toggleDoublePage, object: nil)
+                Button("Toggle Double Page (D)") {
+                    // キーボードショートカットは各ReaderViewで処理
                 }
-                .keyboardShortcut("d", modifiers: [])
 
-                Button("Toggle Reading Direction") {
-                    NotificationCenter.default.post(name: .toggleReadingDirection, object: nil)
+                Button("Toggle Reading Direction (R)") {
+                    // キーボードショートカットは各ReaderViewで処理
                 }
-                .keyboardShortcut("r", modifiers: [])
 
                 Button("Toggle Full Screen") {
                     NotificationCenter.default.post(name: .toggleFullScreen, object: nil)
@@ -98,10 +92,9 @@ struct ToshoApp: App {
 
                 Divider()
 
-                Button("Show Gallery") {
-                    NotificationCenter.default.post(name: .toggleGallery, object: nil)
+                Button("Show Gallery (Cmd+T)") {
+                    // キーボードショートカットは各ReaderViewで処理
                 }
-                .keyboardShortcut("t", modifiers: [.command])
             }
         }
     }

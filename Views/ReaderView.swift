@@ -221,22 +221,61 @@ struct ReaderView: View {
                         .animation(.easeInOut(duration: 0.3), value: viewModel.showControls)
                     }
                 }
+                
+                // ウィンドウスコープの非表示キーボードショートカットボタン
+                VStack {
+                    Button("Next Page") {
+                        viewModel.nextPage()
+                    }
+                    .keyboardShortcut(.space, modifiers: [])
+                    .hidden()
+                    
+                    Button("Previous Page") {
+                        viewModel.previousPage()
+                    }
+                    .keyboardShortcut(.space, modifiers: .shift)
+                    .hidden()
+                    
+                    Button("Adjust Forward") {
+                        viewModel.adjustPageForward()
+                    }
+                    .keyboardShortcut(.rightArrow, modifiers: [])
+                    .hidden()
+                    
+                    Button("Adjust Backward") {
+                        viewModel.adjustPageBackward()
+                    }
+                    .keyboardShortcut(.leftArrow, modifiers: [])
+                    .hidden()
+                    
+                    Button("Toggle Double Page") {
+                        viewModel.toggleDoublePageMode()
+                    }
+                    .keyboardShortcut("d", modifiers: [])
+                    .hidden()
+                    
+                    Button("Toggle Reading Direction") {
+                        viewModel.toggleReadingDirection()
+                    }
+                    .keyboardShortcut("r", modifiers: [])
+                    .hidden()
+                    
+                    Button("Toggle Gallery") {
+                        viewModel.toggleGallery()
+                    }
+                    .keyboardShortcut("t", modifiers: .command)
+                    .hidden()
+                }
             }
             .onAppear {
                 if let fileURL = fileURL {
                     viewModel.loadContent(from: fileURL)
                 }
-                setupNotificationObservers()
             }
             .onHover { hovering in
                 viewModel.showControls = hovering
             }
             .focusable(true)
-            // キーボードショートカットはCommands（ToshoApp.swift）で処理
-            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-                // アプリがアクティブになった時にフォーカスを設定
-                NSApp.keyWindow?.makeFirstResponder(nil)
-            }
             .sheet(isPresented: $viewModel.showGallery) {
                 ThumbnailGalleryView(viewModel: viewModel)
             }
