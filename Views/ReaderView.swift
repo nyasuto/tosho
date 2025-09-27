@@ -93,10 +93,30 @@ struct ReaderView: View {
                             resetZoom()
                         }
                 } else if viewModel.isLoading {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle())
-                        .foregroundColor(.white)
-                        .scaleEffect(1.5)
+                    VStack(spacing: 16) {
+                        if viewModel.loadingProgress > 0 {
+                            // 全画像プリロード時の進捗表示
+                            VStack(spacing: 8) {
+                                Text("全画像を読み込み中...")
+                                    .font(.title3)
+                                    .foregroundColor(.white)
+
+                                ProgressView(value: viewModel.loadingProgress, total: 1.0)
+                                    .progressViewStyle(LinearProgressViewStyle())
+                                    .frame(width: 200)
+
+                                Text("\(Int(viewModel.loadingProgress * 100))%")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                        } else {
+                            // 通常の読み込み表示
+                            ProgressView()
+                                .progressViewStyle(CircularProgressViewStyle())
+                                .foregroundColor(.white)
+                                .scaleEffect(1.5)
+                        }
+                    }
                 } else if let error = viewModel.errorMessage {
                     VStack(spacing: 20) {
                         Image(systemName: "exclamationmark.triangle")
