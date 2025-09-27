@@ -40,7 +40,41 @@ xcodebuild -scheme Tosho clean
 
 # Build and run in Xcode
 # Use Cmd+R in Xcode
+
+# IMPORTANT: Always build after making changes
+# This ensures code quality and catches errors early
+open Tosho.xcodeproj && echo "Build with Cmd+B to verify changes"
 ```
+
+## Quality Assurance
+
+### Build Requirements
+⚠️ **CRITICAL RULE**: After making any changes to the codebase, **ALWAYS** perform a build to verify:
+
+1. **After code changes**:
+   ```bash
+   # Open project and build
+   open Tosho.xcodeproj
+   # Then press Cmd+B in Xcode to build
+   ```
+
+2. **Before committing**:
+   ```bash
+   # Verify build succeeds before git commit
+   xcodebuild -scheme Tosho -configuration Debug build
+   ```
+
+3. **Build verification checklist**:
+   - [ ] No compilation errors
+   - [ ] No warnings (aim for zero warnings)
+   - [ ] All Swift files compile successfully
+   - [ ] Entitlements and resources are properly referenced
+
+### Build Troubleshooting
+- If build fails, check file references in Xcode project
+- Verify all files exist at expected paths
+- Check Info.plist and entitlements file paths
+- Ensure all Swift files are added to target
 
 ## Project Architecture
 
