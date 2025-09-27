@@ -573,7 +573,7 @@ struct ThumbnailGalleryView: View {
     @Environment(\.presentationMode) var presentationMode
 
     private let columns = [
-        GridItem(.adaptive(minimum: 120, maximum: 160), spacing: 16)
+        GridItem(.adaptive(minimum: 90, maximum: 110), spacing: 20)
     ]
 
     var body: some View {
@@ -594,7 +594,8 @@ struct ThumbnailGalleryView: View {
                                 .id(pageIndex)
                             }
                         }
-                        .padding()
+                        .padding(.horizontal, 30)
+                        .padding(.vertical, 20)
                     }
                     .onAppear {
                         // 現在のページにスクロール
@@ -640,13 +641,13 @@ struct ThumbnailCard: View {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
                     .fill(Color.gray.opacity(0.2))
-                    .frame(width: 120, height: 180)
+                    .frame(width: 90, height: 130)
 
                 if let thumbnail = thumbnail {
                     Image(nsImage: thumbnail)
                         .resizable()
                         .aspectRatio(contentMode: .fill)
-                        .frame(width: 120, height: 180)
+                        .frame(width: 90, height: 130)
                         .clipped()
                         .cornerRadius(8)
                 } else {
