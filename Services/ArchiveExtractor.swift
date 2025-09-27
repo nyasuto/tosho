@@ -254,7 +254,9 @@ class ZIPFoundationExtractor {
             sortedIndices = indices
         }
 
-        let prioritizedRange = sortedIndices.first!..<(sortedIndices.last! + 1)
+        let first = sortedIndices.first!
+        let last = sortedIndices.last!
+        let prioritizedRange = first..<max(first + 1, last + 1)
         return try await extractImagesInRange(prioritizedRange, from: archiveURL, imageList: imageList)
     }
 
