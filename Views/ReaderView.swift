@@ -136,7 +136,7 @@ struct ReaderView: View {
 
                 // Navigation Controls Overlay
                 HStack {
-                    if viewModel.hasPreviousPage {
+                    if viewModel.hasPreviousPage && !viewModel.isLoading {
                         Button(action: { viewModel.previousPage() }) {
                             Image(systemName: "chevron.left")
                                 .font(.title)
@@ -151,7 +151,7 @@ struct ReaderView: View {
 
                     Spacer()
 
-                    if viewModel.hasNextPage {
+                    if viewModel.hasNextPage && !viewModel.isLoading {
                         Button(action: { viewModel.nextPage() }) {
                             Image(systemName: "chevron.right")
                                 .font(.title)
