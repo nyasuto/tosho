@@ -605,15 +605,15 @@ struct ThumbnailGalleryView: View {
                 }
             }
             .navigationTitle("Gallery")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .navigation) {
                     Button("Close") {
                         viewModel.toggleGallery()
                     }
+                    .keyboardShortcut(.escape, modifiers: [])
                 }
 
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .primaryAction) {
                     Text("Page \(viewModel.currentPageIndex + 1) of \(viewModel.totalPages)")
                         .font(.caption)
                         .foregroundColor(.secondary)
@@ -696,17 +696,4 @@ struct ThumbnailCard: View {
     }
 }
 
-// MARK: - NSImage Extension
-extension NSImage {
-    func resized(to newSize: CGSize) -> NSImage {
-        let newImage = NSImage(size: newSize)
-        newImage.lockFocus()
-        self.draw(in: NSRect(origin: .zero, size: newSize),
-                  from: NSRect(origin: .zero, size: self.size),
-                  operation: .sourceOver,
-                  fraction: 1.0)
-        newImage.unlockFocus()
-        return newImage
-    }
-}
 
