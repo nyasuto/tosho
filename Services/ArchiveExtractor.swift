@@ -49,6 +49,27 @@ class ArchiveExtractor {
         DebugLogger.shared.logArchiveOperation("Extracting image",
                                                file: archiveURL.lastPathComponent,
                                                details: "Image: \(imageName) (index \(index))")
+
+        // Try memory-based extraction first
+        if ZipExtractor.isSupported(archiveURL) {
+            do {
+                let image = try ZipExtractor.image(forMember: imageName, inArchive: archiveURL)
+                DebugLogger.shared.logArchiveOperation("Memory extraction successful",
+                                                       file: archiveURL.lastPathComponent,
+                                                       details: "Image: \(imageName)")
+                return image
+            } catch {
+                DebugLogger.shared.logArchiveOperation("Memory extraction failed, falling back to disk",
+                                                       file: archiveURL.lastPathComponent,
+                                                       details: "Error: \(error.localizedDescription)")
+                // Continue to disk-based fallback below
+            }
+        }
+
+        // Fallback to disk-based extraction
+        DebugLogger.shared.logArchiveOperation("Using disk-based extraction",
+                                               file: archiveURL.lastPathComponent,
+                                               details: "Image: \(imageName)")
         let tempImageURL = tempDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("temp")
 
         try extractSpecificFile(fileName: imageName, from: archiveURL, to: tempImageURL)
