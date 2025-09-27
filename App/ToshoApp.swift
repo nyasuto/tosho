@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import UniformTypeIdentifiers
 
 @main
 struct ToshoApp: App {
@@ -88,7 +89,27 @@ struct ToshoApp: App {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = true
         panel.canChooseFiles = true
-        panel.allowedContentTypes = [.jpeg, .png, .webP, .heic, .tiff, .bmp, .gif, .zip, .data]
+        // Use modern allowedContentTypes with custom types for WebP and CBZ
+        var contentTypes: [UTType] = [
+            .jpeg, .png, .gif, .tiff, .bmp, .heic, .zip, .data
+        ]
+
+        // Add WebP support
+        if let webpType = UTType(filenameExtension: "webp") {
+            contentTypes.append(webpType)
+        }
+
+        // Add AVIF support
+        if let avifType = UTType(filenameExtension: "avif") {
+            contentTypes.append(avifType)
+        }
+
+        // Add CBZ support
+        if let cbzType = UTType(filenameExtension: "cbz") {
+            contentTypes.append(cbzType)
+        }
+
+        panel.allowedContentTypes = contentTypes
 
         if panel.runModal() == .OK {
             if let url = panel.url {
