@@ -13,7 +13,6 @@ struct ContentView: View {
     @State private var selectedFileURL: URL?
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var showingRecentFiles = false
     @State private var showingFavorites = false
 
     var body: some View {
@@ -51,9 +50,6 @@ struct ContentView: View {
             handleDrop(providers: providers)
             return true
         }
-        .sheet(isPresented: $showingRecentFiles) {
-            RecentFilesView()
-        }
         .sheet(isPresented: $showingFavorites) {
             FavoritesView()
         }
@@ -78,22 +74,6 @@ struct ContentView: View {
             if let url = notification.object as? URL {
                 selectedFileURL = url
             }
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: .showRecentFiles,
-            object: nil,
-            queue: .main
-        ) { _ in
-            showingRecentFiles = true
-        }
-
-        NotificationCenter.default.addObserver(
-            forName: .closeRecentFiles,
-            object: nil,
-            queue: .main
-        ) { _ in
-            showingRecentFiles = false
         }
 
         NotificationCenter.default.addObserver(
