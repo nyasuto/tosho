@@ -248,19 +248,42 @@ struct RecentFileItem: Codable, Identifiable {
 
     init(url: URL, thumbnailData: Data? = nil) {
         self.id = UUID()
-        self.url = url
+        // URLを正規化して保存（ネットワークドライブパスの問題を回避）
+        self.url = url.standardized
         self.lastOpened = Date()
         self.fileName = url.lastPathComponent
 
-        // Get file size
-        if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
-           let size = attributes[.size] as? NSNumber {
-            self.fileSize = size.int64Value
-        } else {
-            self.fileSize = 0
+        // Get file size (ネットワークドライブ対応)
+        self.fileSize = Self.getFileSize(for: url)
+        self.thumbnailData = thumbnailData
+    }
+
+    // ネットワークドライブ対応のファイルサイズ取得
+    private static func getFileSize(for url: URL) -> Int64 {
+        // まずはリソース値で取得を試行（ネットワークドライブでより確実）
+        do {
+            let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey])
+            if let fileSize = resourceValues.fileSize {
+                return Int64(fileSize)
+            }
+        } catch {
+            DebugLogger.shared.logArchiveOperation("Failed to get file size via resourceValues",
+                                                   details: "URL: \(url.path), Error: \(error.localizedDescription)")
         }
 
-        self.thumbnailData = thumbnailData
+        // フォールバック：従来の方法
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: url.path)
+            if let size = attributes[.size] as? NSNumber {
+                return size.int64Value
+            }
+        } catch {
+            DebugLogger.shared.logArchiveOperation("Failed to get file size via FileManager",
+                                                   details: "URL: \(url.path), Error: \(error.localizedDescription)")
+        }
+
+        // どちらも失敗した場合は0を返す
+        return 0
     }
 
     var formattedFileSize: String {
@@ -324,15 +347,56 @@ class RecentFilesManager: ObservableObject {
     }
 
     func validateAndCleanupFiles() {
-        let existingFiles = recentFiles.filter { FileManager.default.fileExists(atPath: $0.url.path) }
+        let existingFiles = recentFiles.filter { isFileAccessible($0.url) }
 
         if existingFiles.count != recentFiles.count {
             let removedCount = recentFiles.count - existingFiles.count
-            DebugLogger.shared.logArchiveOperation("Cleaned up non-existent files",
+            DebugLogger.shared.logArchiveOperation("Cleaned up non-accessible files",
                                                    details: "Removed \(removedCount) files")
             recentFiles = existingFiles
             saveRecentFiles()
             updateSystemRecentMenu()
+        }
+    }
+
+    // ネットワークドライブ対応のファイルアクセス可能性チェック
+    private func isFileAccessible(_ url: URL) -> Bool {
+        // まず基本的な存在チェック
+        guard FileManager.default.fileExists(atPath: url.path) else {
+            // ネットワークドライブの場合、URLResourcesでより詳細にチェック
+            if url.scheme == "smb" || url.scheme == "afp" || url.path.contains("/Volumes/") {
+                return isNetworkFileAccessible(url)
+            }
+            return false
+        }
+
+        // ファイルが実際に読み取り可能かチェック
+        return FileManager.default.isReadableFile(atPath: url.path)
+    }
+
+    // ネットワークファイル専用のアクセスチェック
+    private func isNetworkFileAccessible(_ url: URL) -> Bool {
+        do {
+            // リソース値を取得してアクセス可能性を確認
+            let resourceValues = try url.resourceValues(forKeys: [
+                .isRegularFileKey,
+                .isReadableKey,
+                .volumeIsLocalKey
+            ])
+
+            // ファイルが存在し、読み取り可能な場合のみtrue
+            if let isFile = resourceValues.isRegularFile,
+               let isReadable = resourceValues.isReadable {
+                return isFile && isReadable
+            }
+
+            // リソース値が取得できない場合は保守的にtrue（削除しない）
+            return true
+        } catch {
+            DebugLogger.shared.logArchiveOperation("Network file accessibility check failed",
+                                                   details: "URL: \(url.path), Error: \(error.localizedDescription)")
+            // エラーの場合は保守的にtrue（削除しない）
+            return true
         }
     }
 

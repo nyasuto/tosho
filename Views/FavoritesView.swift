@@ -303,7 +303,9 @@ struct FileHistoryCard: View {
     }
 }
 
-#Preview {
-    FavoritesView()
-        .frame(width: 700, height: 600)
+struct FavoritesView_Previews: PreviewProvider {
+    static var previews: some View {
+        FavoritesView()
+            .frame(width: 700, height: 600)
+    }
 }
