@@ -287,7 +287,7 @@ class ReaderViewModel: ObservableObject {
     // MARK: - 古いキャッシュシステムは削除（全画像プリロード方式では不要）
 
     func nextPage() {
-        guard hasNextPage else { return }
+        guard hasNextPage && !isLoading else { return }
 
         var newIndex: Int
         if isDoublePageMode {
@@ -313,7 +313,7 @@ class ReaderViewModel: ObservableObject {
     }
 
     func previousPage() {
-        guard hasPreviousPage else { return }
+        guard hasPreviousPage && !isLoading else { return }
 
         var newIndex: Int
         if isDoublePageMode {
@@ -381,6 +381,8 @@ class ReaderViewModel: ObservableObject {
     // MARK: - 見開きモード用1ページ単位調整
 
     func adjustPageForward() {
+        guard !isLoading else { return }
+
         guard isDoublePageMode else {
             // 単ページモードでは通常のnextPageと同じ
             nextPage()
@@ -409,6 +411,8 @@ class ReaderViewModel: ObservableObject {
     }
 
     func adjustPageBackward() {
+        guard !isLoading else { return }
+
         guard isDoublePageMode else {
             // 単ページモードでは通常のpreviousPageと同じ
             previousPage()
@@ -443,7 +447,7 @@ class ReaderViewModel: ObservableObject {
     }
 
     func jumpToPage(_ pageIndex: Int) {
-        guard pageIndex >= 0 && pageIndex < totalPages else { return }
+        guard pageIndex >= 0 && pageIndex < totalPages && !isLoading else { return }
         showGallery = false
 
         // 全画像プリロード方式では即座に表示
