@@ -1,0 +1,53 @@
+# SwiftLint configuration for Tosho
+included:
+  - App/
+  - Views/
+  - ViewModels/
+  - Models/
+  - Services/
+  - Utilities/
+
+excluded:
+  - .build
+  - .derivedData
+  - Pods/
+  - build/
+
+# Rule configuration
+disabled_rules:
+  - trailing_whitespace # Allow trailing whitespace in some cases
+
+opt_in_rules:
+  - empty_count
+  - explicit_init
+  - file_name
+  - first_where
+  - modifier_order
+  - operator_usage_whitespace
+  - redundant_nil_coalescing
+  - sorted_first_last
+  - unused_import
+
+# Custom rule configurations
+line_length:
+  warning: 120
+  error: 150
+
+function_body_length:
+  warning: 50
+  error: 80
+
+type_body_length:
+  warning: 300
+  error: 400
+
+file_length:
+  warning: 400
+  error: 500
+
+identifier_name:
+  min_length: 1
+  max_length: 50
+
+# Exclude specific files if needed
+custom_rules: {}
