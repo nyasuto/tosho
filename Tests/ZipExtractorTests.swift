@@ -44,7 +44,7 @@ class ZipExtractorTests {
         do {
             let _ = try ZipExtractor.data(forMember: "test.jpg", inArchive: fakeArchiveURL)
             print("❌ Should have thrown an error for non-existent archive")
-        } catch ZipExtractionError.nonZeroExit(let code, let message) {
+        } catch ZipExtractionError.nonZeroExit(let code, _) {
             print("✅ Correctly handled non-existent archive: exit code \(code)")
         } catch {
             print("✅ Error handling works: \(error.localizedDescription)")

@@ -370,7 +370,9 @@ struct HelpItem: View {
     }
 }
 
-#Preview {
-    RecentFilesView()
-        .frame(width: 700, height: 600)
+struct RecentFilesView_Previews: PreviewProvider {
+    static var previews: some View {
+        RecentFilesView()
+            .frame(width: 700, height: 600)
+    }
 }
