@@ -40,9 +40,9 @@ class ReadingSettings: ObservableObject {
     private let readingDirectionKey = "ToshoReadingDirection"
 
     init() {
-        // 保存された設定を読み込み、デフォルトは右綴じ（日本式）
-        let savedDirection = userDefaults.string(forKey: readingDirectionKey) ?? ReadingDirection.rightToLeft.rawValue
-        self.readingDirection = ReadingDirection(rawValue: savedDirection) ?? .rightToLeft
+        // 保存された設定を読み込み、デフォルトは左綴じ（西洋式）
+        let savedDirection = userDefaults.string(forKey: readingDirectionKey) ?? ReadingDirection.leftToRight.rawValue
+        self.readingDirection = ReadingDirection(rawValue: savedDirection) ?? .leftToRight
     }
 
     private func saveSettings() {
