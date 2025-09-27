@@ -123,7 +123,7 @@ struct WelcomeView: View {
                     .foregroundColor(.secondary)
 
                 // Supported formats info
-                Text("Supports: JPEG, PNG, WebP, HEIC, TIFF, BMP, GIF")
+                Text("Supports: JPEG, PNG, WebP, HEIC, TIFF, BMP, GIF, ZIP, CBZ")
                     .font(.caption2)
                     .foregroundColor(.secondary)
                     .padding(.top, 5)

@@ -95,6 +95,7 @@
 		D0000014A1000001000000AA /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				TD1CCDBAE5544641D29995 /* ToshoDocument.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -102,6 +103,7 @@
 		D0000015A1000001000000AA /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				AE4C3DC8F29A8947FEBD80 /* ArchiveExtractor.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -193,6 +195,8 @@
 				D0000003A1000001000000AA /* ContentView.swift in Sources */,
 				D0000005A1000001000000AA /* ReaderView.swift in Sources */,
 				D0000007A1000001000000AA /* ReaderViewModel.swift in Sources */,
+				AE5F3155A07FC84B49909FBUILD /* ArchiveExtractor.swift in Sources */,
+				TD647232D17360463790FABUILD /* ToshoDocument.swift in Sources */,
 				D0000001A1000001000000AA /* ToshoApp.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
