@@ -54,7 +54,6 @@
 				D0000016A1000001000000AA /* Utilities */,
 				D0000017A1000001000000AA /* Resources */,
 			);
-			path = Tosho;
 			sourceTree = "<group>";
 		};
 		D0000010A1000001000000AA /* Products */ = {
