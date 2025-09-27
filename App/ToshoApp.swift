@@ -71,6 +71,18 @@ struct ToshoApp: App {
 
                 Divider()
 
+                Button("Adjust Forward (+)") {
+                    NotificationCenter.default.post(name: .adjustPageForward, object: nil)
+                }
+                .keyboardShortcut("+", modifiers: [])
+
+                Button("Adjust Backward (-)") {
+                    NotificationCenter.default.post(name: .adjustPageBackward, object: nil)
+                }
+                .keyboardShortcut("-", modifiers: [])
+
+                Divider()
+
                 Button("Toggle Double Page") {
                     NotificationCenter.default.post(name: .toggleDoublePage, object: nil)
                 }
@@ -202,6 +214,8 @@ extension Notification.Name {
     static let closeFavorites = Notification.Name("tosho.closeFavorites")
     static let nextPage = Notification.Name("tosho.nextPage")
     static let previousPage = Notification.Name("tosho.previousPage")
+    static let adjustPageForward = Notification.Name("tosho.adjustPageForward")
+    static let adjustPageBackward = Notification.Name("tosho.adjustPageBackward")
     static let toggleDoublePage = Notification.Name("tosho.toggleDoublePage")
     static let toggleReadingDirection = Notification.Name("tosho.toggleReadingDirection")
     static let toggleFullScreen = Notification.Name("tosho.toggleFullScreen")
