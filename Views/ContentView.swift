@@ -581,7 +581,3 @@ extension NSImage {
     }
 }
 
-// MARK: - Notification Extensions
-extension Notification.Name {
-    static let closeRecentFiles = Notification.Name("CloseRecentFiles")
-}

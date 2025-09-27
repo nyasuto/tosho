@@ -238,7 +238,7 @@ enum ArchiveError: Error, LocalizedError {
 // MARK: - Recent Files Management
 
 struct RecentFileItem: Codable, Identifiable {
-    let id = UUID()
+    let id: UUID
     let url: URL
     let lastOpened: Date
     let fileName: String
@@ -246,6 +246,7 @@ struct RecentFileItem: Codable, Identifiable {
     let thumbnailData: Data?
 
     init(url: URL, thumbnailData: Data? = nil) {
+        self.id = UUID()
         self.url = url
         self.lastOpened = Date()
         self.fileName = url.lastPathComponent

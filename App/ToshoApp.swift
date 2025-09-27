@@ -180,6 +180,8 @@ extension Notification.Name {
     static let openFile = Notification.Name("tosho.openFile")
     static let openFolder = Notification.Name("tosho.openFolder")
     static let showRecentFiles = Notification.Name("tosho.showRecentFiles")
+    static let recentFileOpened = Notification.Name("tosho.recentFileOpened")
+    static let closeRecentFiles = Notification.Name("tosho.closeRecentFiles")
     static let nextPage = Notification.Name("tosho.nextPage")
     static let previousPage = Notification.Name("tosho.previousPage")
     static let toggleDoublePage = Notification.Name("tosho.toggleDoublePage")
