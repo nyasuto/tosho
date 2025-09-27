@@ -198,9 +198,10 @@ struct ReaderView: View {
                 viewModel.showControls = hovering
             }
             .focusable(true)
-            .onKeyPress { keyPress in
-                handleKeyPress(keyPress)
-                return .handled
+            // キーボードショートカットはCommands（ToshoApp.swift）で処理
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                // アプリがアクティブになった時にフォーカスを設定
+                NSApp.keyWindow?.makeFirstResponder(nil)
             }
         }
     }
@@ -238,33 +239,7 @@ struct ReaderView: View {
         }
     }
 
-    private func handleKeyPress(_ keyPress: KeyPress) {
-        switch keyPress.key {
-        case .rightArrow, .space:
-            if viewModel.readingSettings.readingDirection.isRightToLeft {
-                // 右綴じ：右矢印は戻る
-                viewModel.previousPage()
-            } else {
-                // 左綴じ：右矢印は進む
-                viewModel.nextPage()
-            }
-        case .leftArrow:
-            if viewModel.readingSettings.readingDirection.isRightToLeft {
-                // 右綴じ：左矢印は進む
-                viewModel.nextPage()
-            } else {
-                // 左綴じ：左矢印は戻る
-                viewModel.previousPage()
-            }
-        case .init(.init("d")), .init(.init("D")):
-            viewModel.toggleDoublePageMode()
-            resetZoom()
-        case .init(.init("r")), .init(.init("R")):
-            viewModel.toggleReadingDirection()
-        default:
-            break
-        }
-    }
+    // キーボードショートカットの処理はCommands（ToshoApp.swift）に移動
 
     private func setupNotificationObservers() {
         NotificationCenter.default.addObserver(
@@ -289,6 +264,14 @@ struct ReaderView: View {
             queue: .main
         ) { _ in
             viewModel.toggleDoublePageMode()
+        }
+
+        NotificationCenter.default.addObserver(
+            forName: .toggleReadingDirection,
+            object: nil,
+            queue: .main
+        ) { _ in
+            viewModel.toggleReadingDirection()
         }
     }
 }
