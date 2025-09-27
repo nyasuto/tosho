@@ -240,7 +240,14 @@ struct ReaderView: View {
 
     private func handleKeyPress(_ keyPress: KeyPress) {
         switch keyPress.key {
-        case .rightArrow, .space:
+        case .space:
+            // Shift+スペース: 戻る、スペースのみ: 進む
+            if keyPress.modifiers.contains(.shift) {
+                viewModel.previousPage()
+            } else {
+                viewModel.nextPage()
+            }
+        case .rightArrow:
             if viewModel.readingSettings.readingDirection.isRightToLeft {
                 // 右綴じ：右矢印は戻る
                 viewModel.previousPage()
