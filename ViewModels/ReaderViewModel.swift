@@ -256,7 +256,13 @@ class ReaderViewModel: ObservableObject {
 
     // 見開きモードで実際に2ページ表示するかどうか
     var shouldShowDoublePages: Bool {
-        return isDoublePageMode && !isCoverPage && currentPageIndex + 1 < totalPages
+        shouldDisplayDoublePages(at: currentPageIndex)
+    }
+
+    private func shouldDisplayDoublePages(at index: Int) -> Bool {
+        guard isDoublePageMode else { return false }
+        guard index > 0 else { return false }
+        return index + 1 < totalPages
     }
 
     // MARK: - Smart Preloading System
@@ -461,7 +467,8 @@ class ReaderViewModel: ObservableObject {
 
     private func present(primary: NSImage, secondary: NSImage?, index: Int) {
         currentImage = primary
-        secondImage = shouldShowDoublePages ? secondary : nil
+        let showDouble = shouldDisplayDoublePages(at: index)
+        secondImage = showDouble ? secondary : nil
         currentPageIndex = index
         isLoading = false
         loadingProgress = 1.0
@@ -473,20 +480,18 @@ class ReaderViewModel: ObservableObject {
             return
         }
 
-        if shouldShowDoublePages {
+        let wantsDouble = shouldDisplayDoublePages(at: index)
+
+        if wantsDouble {
             let firstCached = loadImageWithCache(at: index)
             let secondCached = (index + 1 < totalPages) ? loadImageWithCache(at: index + 1) : nil
 
-            if let firstCached = firstCached, (index + 1 >= totalPages || secondCached != nil) {
+            if let firstCached = firstCached, secondCached != nil {
                 present(primary: firstCached, secondary: secondCached, index: index)
                 return
             }
 
-            if let firstCached = firstCached {
-                present(primary: firstCached, secondary: secondCached, index: index)
-            }
-
-            loadDoublePageImages(startIndex: index, keepExistingPrimary: firstCached != nil)
+            loadDoublePageImages(startIndex: index)
         } else {
             if let cachedImage = loadImageWithCache(at: index) {
                 present(primary: cachedImage, secondary: nil, index: index)
@@ -517,10 +522,8 @@ class ReaderViewModel: ObservableObject {
         }
     }
 
-    private func loadDoublePageImages(startIndex: Int, keepExistingPrimary: Bool) {
-        if !keepExistingPrimary {
-            isLoading = true
-        }
+    private func loadDoublePageImages(startIndex: Int) {
+        isLoading = true
 
         let firstIndex = startIndex
         let secondIndex = startIndex + 1
@@ -533,12 +536,19 @@ class ReaderViewModel: ObservableObject {
             let secondImage = secondIndex < self.totalPages ? self.loadImageWithCache(at: secondIndex) : nil
 
             DispatchQueue.main.async {
-                if let firstImage {
-                    self.present(primary: firstImage, secondary: secondImage, index: firstIndex)
-                } else {
+                guard let firstImage else {
                     self.errorMessage = "Unable to load images at index \(firstIndex)"
                     self.isLoading = false
+                    return
                 }
+
+                if self.shouldDisplayDoublePages(at: firstIndex) && secondImage == nil {
+                    self.errorMessage = "Unable to load images at index \(secondIndex)"
+                    self.isLoading = false
+                    return
+                }
+
+                self.present(primary: firstImage, secondary: secondImage, index: firstIndex)
             }
         }
     }
