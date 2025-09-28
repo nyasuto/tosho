@@ -193,6 +193,7 @@ class ReaderViewModel: ObservableObject {
     private let imageCache = ImageCache.shared
     private var thumbnailCache: [Int: NSImage] = [:]
     private let document = ToshoDocument() // 再利用されるdocumentインスタンス
+    private let documentAccessQueue = DispatchQueue(label: "com.tosho.document-access", qos: .userInitiated)
     private let thumbnailSize = CGSize(width: 90, height: 130)
     private weak var session: ReadingSession?
     private var didPrepareForClose = false
@@ -367,16 +368,11 @@ class ReaderViewModel: ObservableObject {
             return // Already cached
         }
 
-        // Load image in background
-        do {
-            if let image = try document.getImage(at: index) {
-                await MainActor.run {
-                    imageCache.setImage(image, forKey: cacheKey)
-                    DebugLogger.shared.log("Preloaded image at index \(index)", category: "ReaderViewModel")
-                }
+        if let image = fetchImageSynchronously(at: index) {
+            await MainActor.run {
+                imageCache.setImage(image, forKey: cacheKey)
+                DebugLogger.shared.log("Preloaded image at index \(index)", category: "ReaderViewModel")
             }
-        } catch {
-            DebugLogger.shared.logError(error, context: "Failed to preload image at index \(index)")
         }
     }
 
@@ -401,17 +397,23 @@ class ReaderViewModel: ObservableObject {
             return nil
         }
 
-        // Load from document and cache
-        do {
-            if let image = try document.getImage(at: index) {
-                imageCache.setImage(image, forKey: cacheKey)
-                return image
-            }
-        } catch {
-            DebugLogger.shared.logError(error, context: "Failed to load image at index \(index)")
+        guard let image = fetchImageSynchronously(at: index) else {
+            return nil
         }
 
-        return nil
+        imageCache.setImage(image, forKey: cacheKey)
+        return image
+    }
+
+    private func fetchImageSynchronously(at index: Int) -> NSImage? {
+        documentAccessQueue.sync {
+            do {
+                return try document.getImage(at: index)
+            } catch {
+                DebugLogger.shared.logError(error, context: "Failed to load image at index \(index)")
+                return nil
+            }
+        }
     }
 
     func loadContent(from url: URL) {
