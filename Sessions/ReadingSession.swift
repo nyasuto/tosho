@@ -23,7 +23,6 @@ final class ReadingSession: ObservableObject, Identifiable {
     private let favoritesManager = FavoritesManager.shared
     private var securityScopedURL: URL?
     private var smartPreloadTask: Task<Void, Never>?
-    private var legacyPreloadTask: Task<Void, Never>?
 
     init(sourceURL: URL, autoLoad: Bool = true) {
         self.id = UUID()
@@ -70,10 +69,6 @@ final class ReadingSession: ObservableObject, Identifiable {
         smartPreloadTask = task
     }
 
-    func registerLegacyPreloadTask(_ task: Task<Void, Never>) {
-        legacyPreloadTask = task
-    }
-
     /// Called when the owning window is about to close.
     func prepareForClose() async {
         guard state != .closing && state != .closed else { return }
@@ -83,20 +78,12 @@ final class ReadingSession: ObservableObject, Identifiable {
         viewModel.prepareForClose()
 
         let smartTask = smartPreloadTask
-        let legacyTask = legacyPreloadTask
-
         smartTask?.cancel()
-        legacyTask?.cancel()
 
         smartPreloadTask = nil
-        legacyPreloadTask = nil
 
         if let smartTask {
             _ = await smartTask.value
-        }
-
-        if let legacyTask {
-            _ = await legacyTask.value
         }
 
         releaseSecurityScope()
