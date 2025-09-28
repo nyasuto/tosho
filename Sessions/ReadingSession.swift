@@ -111,7 +111,6 @@ final class ReadingSession: ObservableObject, Identifiable {
     }
 }
 
-#if DEBUG
 extension ReadingSession {
     static func previewSession() -> ReadingSession {
         let session = ReadingSession(sourceURL: URL(fileURLWithPath: "/tmp/preview.jpg"), autoLoad: false)
@@ -120,4 +119,3 @@ extension ReadingSession {
         return session
     }
 }
-#endif
