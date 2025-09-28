@@ -126,3 +126,6 @@ build_results.txt
 create_icons.sh
 *.tmp
 *.temp
+
+# Serena configuration/workspace state
+.serena/
