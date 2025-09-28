@@ -6,8 +6,9 @@ SHELL := /usr/bin/env bash
 .DEFAULT_GOAL := help
 
 # Xcode detection
-DEVELOPER_DIR := $(shell xcode-select -p 2>/dev/null)
-HAVE_FULL_XCODE := $(shell if [[ "$(DEVELOPER_DIR)" == *"Xcode.app"* ]] && [ -x "$(DEVELOPER_DIR)/usr/bin/xcodebuild" ]; then echo yes; else echo no; fi)
+# Respect an existing DEVELOPER_DIR (e.g. provided by CI) and fall back to xcode-select.
+DEVELOPER_DIR ?= $(shell xcode-select -p 2>/dev/null)
+HAVE_FULL_XCODE := $(shell if [ -n "$(DEVELOPER_DIR)" ] && [ -x "$(DEVELOPER_DIR)/usr/bin/xcodebuild" ]; then echo yes; else echo no; fi)
 
 # Project Configuration
 PROJECT_NAME = Tosho
