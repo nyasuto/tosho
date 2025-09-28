@@ -335,9 +335,6 @@ struct ThumbnailGalleryView: View {
                 }
             }
         }
-        .onAppear {
-            viewModel.preloadThumbnails()
-        }
     }
 }
 
@@ -347,36 +344,24 @@ struct ThumbnailCard: View {
     @ObservedObject var viewModel: ReaderViewModel
     let isCurrentPage: Bool
 
-    @State private var thumbnail: NSImage?
     @State private var isHovered = false
 
     var body: some View {
         VStack(spacing: 8) {
             ZStack {
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.gray.opacity(0.2))
+                    .fill(isCurrentPage ? Color.accentColor.opacity(0.25) : Color.gray.opacity(0.15))
                     .frame(width: 90, height: 130)
 
-                if let thumbnail = thumbnail {
-                    Image(nsImage: thumbnail)
-                        .resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .frame(width: 90, height: 130)
-                        .clipped()
-                        .cornerRadius(8)
-                } else {
-                    VStack {
-                        ProgressView()
-                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        Text("Loading...")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
-                }
+                Text("\(pageIndex + 1)")
+                    .font(.title2)
+                    .bold()
+                    .foregroundColor(isCurrentPage ? .accentColor : .primary)
 
                 if isCurrentPage {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.accentColor, lineWidth: 3)
+                        .frame(width: 90, height: 130)
                 }
             }
             .scaleEffect(isHovered ? 1.05 : 1.0)
@@ -395,21 +380,5 @@ struct ThumbnailCard: View {
                 viewModel.jumpToPage(pageIndex)
             }
         }
-        .onAppear {
-            loadThumbnail()
-        }
-    }
-
-    private func loadThumbnail() {
-        if let cachedThumbnail = viewModel.getThumbnail(for: pageIndex) {
-            self.thumbnail = cachedThumbnail
-        } else {
-            // ViewModelがバックグラウンドで生成してくれるのを待つ
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.thumbnail = viewModel.getThumbnail(for: pageIndex)
-            }
-        }
     }
 }
-
-

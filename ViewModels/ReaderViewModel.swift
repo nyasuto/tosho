@@ -191,10 +191,8 @@ class ReaderViewModel: ObservableObject {
 
     // High-performance caching system
     private let imageCache = ImageCache.shared
-    private var thumbnailCache: [Int: NSImage] = [:]
     private let document = ToshoDocument() // 再利用されるdocumentインスタンス
     private let documentAccessQueue = DispatchQueue(label: "com.tosho.document-access", qos: .userInitiated)
-    private let thumbnailSize = CGSize(width: 90, height: 130)
     private weak var session: ReadingSession?
     private var didPrepareForClose = false
 
@@ -231,7 +229,6 @@ class ReaderViewModel: ObservableObject {
 
         currentImage = nil
         secondImage = nil
-        thumbnailCache.removeAll()
         currentPreloadRange = 0..<0
         currentFileURL = nil
 
@@ -431,7 +428,6 @@ class ReaderViewModel: ObservableObject {
 
         currentImage = nil
         secondImage = nil
-        thumbnailCache.removeAll()
         currentPreloadRange = 0..<0
 
         currentFileURL = url
@@ -703,51 +699,6 @@ class ReaderViewModel: ObservableObject {
         startSmartPreload(around: pageIndex)
     }
 
-    func getThumbnail(for pageIndex: Int) -> NSImage? {
-        // キャッシュから取得
-        if let thumbnail = thumbnailCache[pageIndex] {
-            return thumbnail
-        }
-
-        // 既にページ画像がキャッシュされていればそこから生成
-        let cacheKey = generateCacheKey(for: pageIndex)
-        if let cachedImage = imageCache.image(forKey: cacheKey) {
-            let thumbnail = cachedImage.resized(to: thumbnailSize)
-            thumbnailCache[pageIndex] = thumbnail
-            return thumbnail
-        }
-
-        // バックグラウンドでサムネイル生成
-        generateThumbnail(for: pageIndex)
-        return nil
-    }
-
-    private func generateThumbnail(for pageIndex: Int) {
-        guard pageIndex >= 0 && pageIndex < totalPages else { return }
-
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self = self else { return }
-
-            if let image = self.loadImageWithCache(at: pageIndex) {
-                let thumbnail = image.resized(to: self.thumbnailSize)
-                DispatchQueue.main.async {
-                    self.thumbnailCache[pageIndex] = thumbnail
-                }
-            } else {
-                DebugLogger.shared.log("Thumbnail generation skipped for index \(pageIndex) due to missing source image", category: "ReaderViewModel")
-            }
-        }
-    }
-
-    func preloadThumbnails() {
-        DispatchQueue.global(qos: .utility).async {
-            for i in 0..<self.totalPages {
-                if self.thumbnailCache[i] == nil {
-                    self.generateThumbnail(for: i)
-                }
-            }
-        }
-    }
 }
 
 // MARK: - File Loader
