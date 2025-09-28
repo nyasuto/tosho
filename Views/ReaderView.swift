@@ -8,21 +8,14 @@
 import SwiftUI
 
 struct ReaderView: View {
-    let fileURL: URL?
-    @ObservedObject var viewModel: ReaderViewModel
+    @ObservedObject private var session: ReadingSession
+    @ObservedObject private var viewModel: ReaderViewModel
     @State private var currentZoom: CGFloat = 1.0
     @State private var offset: CGSize = .zero
 
-    // Legacy initializer for existing ContentView
-    init(fileURL: URL) {
-        self.fileURL = fileURL
-        self.viewModel = ReaderViewModel()
-    }
-
-    // New initializer for DocumentReaderView
-    init(viewModel: ReaderViewModel) {
-        self.fileURL = nil
-        self.viewModel = viewModel
+    init(session: ReadingSession) {
+        self._session = ObservedObject(initialValue: session)
+        self._viewModel = ObservedObject(initialValue: session.viewModel)
     }
 
     var body: some View {
@@ -267,11 +260,6 @@ struct ReaderView: View {
                     .hidden()
                 }
             }
-            .onAppear {
-                if let fileURL = fileURL {
-                    viewModel.loadContent(from: fileURL)
-                }
-            }
             .onHover { hovering in
                 viewModel.showControls = hovering
             }
@@ -379,7 +367,7 @@ struct ReaderView: View {
 // MARK: - Preview
 struct ReaderView_Previews: PreviewProvider {
     static var previews: some View {
-        ReaderView(fileURL: URL(fileURLWithPath: "/path/to/image.jpg"))
+        ReaderView(session: ReadingSession.previewSession())
             .frame(width: 1200, height: 900)
     }
 }

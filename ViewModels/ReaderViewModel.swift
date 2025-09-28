@@ -160,7 +160,8 @@ class ReaderViewModel: ObservableObject {
     private var thumbnailCache: [Int: NSImage] = [:]
     private let document = ToshoDocument() // 再利用されるdocumentインスタンス
     private let thumbnailSize = CGSize(width: 90, height: 130)
-    private let favoritesManager = FavoritesManager.shared
+    private weak var session: ReadingSession?
+    private var didPrepareForClose = false
 
     // Smart preloading system
     private var smartPreloadTask: Task<Void, Never>?
@@ -168,23 +169,34 @@ class ReaderViewModel: ObservableObject {
     private var currentPreloadRange: Range<Int> = 0..<0
     private let preloadQueue = DispatchQueue(label: "com.tosho.preload", qos: .userInitiated, attributes: .concurrent)
     private let maxConcurrentPreloads = 3
-    private var currentFileURL: URL? // セキュリティスコープ管理用
+    private var currentFileURL: URL? // セッションが管理
 
     deinit {
         DebugLogger.shared.log("ReaderViewModel deinitializing", category: "ReaderViewModel")
+        prepareForClose()
+        DebugLogger.shared.log("ReaderViewModel memory released", category: "ReaderViewModel")
+    }
 
-        // セキュリティスコープのアクセス権限を終了
-        if let fileURL = currentFileURL {
-            favoritesManager.stopAccessingFileFromHistory(fileURL)
-        }
+    func attachToSession(_ session: ReadingSession) {
+        self.session = session
+    }
+
+    func loadInitialContent(from url: URL) {
+        loadContent(from: url)
+    }
+
+    func prepareForClose() {
+        guard !didPrepareForClose else { return }
+        didPrepareForClose = true
+
         smartPreloadTask?.cancel()
         preloadTask?.cancel()
 
-        // 画像キャッシュをクリア
         allImages.removeAll()
         thumbnailCache.removeAll()
 
-        DebugLogger.shared.log("ReaderViewModel memory released", category: "ReaderViewModel")
+        smartPreloadTask = nil
+        preloadTask = nil
     }
 
     var hasNextPage: Bool {
@@ -228,9 +240,12 @@ class ReaderViewModel: ObservableObject {
 
         DebugLogger.shared.log("Starting smart preload: range \(startIndex)..<\(endIndex)", category: "ReaderViewModel")
 
-        smartPreloadTask = Task { [weak self] in
-            await self?.preloadImagesInRange(newRange, priorityIndex: currentIndex)
+        let task: Task<Void, Never> = Task(priority: .userInitiated) { [weak self] in
+            guard let self = self else { return }
+            await self.preloadImagesInRange(newRange, priorityIndex: currentIndex)
         }
+        smartPreloadTask = task
+        session?.registerSmartPreloadTask(task)
     }
 
     // MARK: - Phase 3: Enhanced Parallel Preloading
@@ -368,10 +383,6 @@ class ReaderViewModel: ObservableObject {
 
         // 現在のファイルURLを保存（セキュリティスコープ管理用）
         currentFileURL = url
-
-        // ファイルアクセスを記録
-        favoritesManager.recordFileAccess(url)
-
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             do {
                 guard let self = self else { return }
@@ -408,7 +419,7 @@ class ReaderViewModel: ObservableObject {
 
         DebugLogger.shared.log("Starting Phase 3 preload of all \(totalPages) images", category: "ReaderViewModel")
 
-        preloadTask = Task { [weak self] in
+        let task: Task<Void, Never> = Task(priority: .userInitiated) { [weak self] in
             guard let self = self else { return }
 
             // Try Phase 3 high-performance bulk loading for archives
@@ -419,6 +430,8 @@ class ReaderViewModel: ObservableObject {
                 await self.preloadAllImagesSequential()
             }
         }
+        preloadTask = task
+        session?.registerLegacyPreloadTask(task)
     }
 
     /// Phase 3: High-performance bulk archive loading with parallel processing

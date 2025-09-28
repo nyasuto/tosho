@@ -200,8 +200,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             queue: .main
         ) { [weak self] notification in
             if let url = notification.object as? URL {
-                // ファイル履歴に追加
-                FavoritesManager.shared.recordFileAccess(url)
                 self?.openNewReaderWindow(with: url)
             }
         }
@@ -213,6 +211,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async { [weak self] in
             DebugLogger.shared.log("AppDelegate: Creating NSWindow", category: "AppDelegate")
 
+            let session = ReadingSessionManager.shared.startSession(for: url)
+
             // NSWindowを直接作成してマルチウィンドウを実現
             let window = NSWindow(
                 contentRect: NSRect(x: 100, y: 100, width: 1200, height: 900),
@@ -223,12 +223,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
             DebugLogger.shared.log("AppDelegate: NSWindow created successfully", category: "AppDelegate")
 
-            window.title = url.lastPathComponent
+            window.title = session.sourceURL.lastPathComponent
             window.setContentSize(NSSize(width: 1200, height: 900))
             window.center()
 
             // ウィンドウが閉じられた時にリストから削除
-            let windowDelegate = WindowDelegate { [weak self] closedWindow in
+            let windowDelegate = WindowDelegate(sessionID: session.id) { [weak self] closedWindow in
                 self?.readerWindows.removeAll { $0 === closedWindow }
                 self?.windowDelegates.removeAll { $0.window === closedWindow }
                 DebugLogger.shared.log("AppDelegate: Window removed from list", category: "AppDelegate")
@@ -237,7 +237,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             window.delegate = windowDelegate
 
             DebugLogger.shared.log("AppDelegate: Creating ReaderView", category: "AppDelegate")
-            let readerView = ReaderView(fileURL: url)
+            let readerView = ReaderView(session: session)
             let hostingView = NSHostingView(rootView: readerView)
             window.contentView = hostingView
 
@@ -254,19 +254,30 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 }
 
 // MARK: - Window Delegate
+@MainActor
 class WindowDelegate: NSObject, NSWindowDelegate {
     private let onWindowClose: (NSWindow) -> Void
+    private let sessionID: UUID
     weak var window: NSWindow?
 
-    init(onWindowClose: @escaping (NSWindow) -> Void) {
+    init(sessionID: UUID, onWindowClose: @escaping (NSWindow) -> Void) {
+        self.sessionID = sessionID
         self.onWindowClose = onWindowClose
         super.init()
     }
 
     func windowWillClose(_ notification: Notification) {
         if let window = notification.object as? NSWindow {
-            onWindowClose(window)
+            DebugLogger.shared.log("WindowDelegate: windowWillClose invoked for \(window.title) (session: \(sessionID))", category: "AppDelegate")
         }
+    }
+
+    @objc func windowDidClose(_ notification: Notification) {
+        guard let window = notification.object as? NSWindow else { return }
+
+        DebugLogger.shared.log("WindowDelegate: windowDidClose invoked for \(window.title) (session: \(sessionID))", category: "AppDelegate")
+        ReadingSessionManager.shared.closeSession(withID: sessionID)
+        onWindowClose(window)
     }
 }
 

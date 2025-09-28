@@ -18,6 +18,8 @@
 		RD8472A3E12B59C7F891BUILD /* ReadingDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = RD5A39B8C47E28D4A653F0 /* ReadingDirection.swift */; };
 		DL8472A3E12B59C7F891BUILD /* DebugLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = DL5A39B8C47E28D4A653F0 /* DebugLogger.swift */; };
 		FAV72B4E9C3D8A5F1234567 /* FavoritesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAV51A3B7C8E4D6F9012345 /* FavoritesView.swift */; };
+		054D1CB7FDC143609B7DF65D /* ReadingSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7905416B2764EF99583CCF3 /* ReadingSessionManager.swift */; };
+		E62F9B4E42D7464BB1CB2ABD /* ReadingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = D09242FF2A604432B435199B /* ReadingSession.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -38,6 +40,8 @@
 		DOC001A1000001000000AA /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
 		DOC002A1000001000000AA /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
 		DOC003A1000001000000AA /* .gitignore */ = {isa = PBXFileReference; lastKnownFileType = text; path = .gitignore; sourceTree = "<group>"; };
+		B7905416B2764EF99583CCF3 /* ReadingSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingSessionManager.swift; sourceTree = "<group>"; };
+		D09242FF2A604432B435199B /* ReadingSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReadingSession.swift; sourceTree = "<group>"; };
 		DOC004A1000001000000AA /* .swiftlint.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = .swiftlint.yml; sourceTree = "<group>"; };
 		DOC005A1000001000000AA /* dependabot.yml */ = {isa = PBXFileReference; lastKnownFileType = text.yaml; path = dependabot.yml; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -70,6 +74,8 @@
 				D0000014A1000001000000AA /* Models */,
 				D0000015A1000001000000AA /* Services */,
 				D0000016A1000001000000AA /* Utilities */,
+				61E34390AD6941A380A913E7 /* Managers */,
+				09BB329D0561454298EECDA6 /* Sessions */,
 				D0000017A1000001000000AA /* Resources */,
 				DOC100A1000001000000AA /* Documentation */,
 			);
@@ -135,6 +141,22 @@
 				DL5A39B8C47E28D4A653F0 /* DebugLogger.swift */,
 			);
 			path = Utilities;
+			sourceTree = "<group>";
+		};
+		61E34390AD6941A380A913E7 /* Managers */ = {
+			isa = PBXGroup;
+			children = (
+				B7905416B2764EF99583CCF3 /* ReadingSessionManager.swift */,
+			);
+			path = Managers;
+			sourceTree = "<group>";
+		};
+		09BB329D0561454298EECDA6 /* Sessions */ = {
+			isa = PBXGroup;
+			children = (
+				D09242FF2A604432B435199B /* ReadingSession.swift */,
+			);
+			path = Sessions;
 			sourceTree = "<group>";
 		};
 		D0000017A1000001000000AA /* Resources */ = {
@@ -264,6 +286,8 @@
 				D0000007A1000001000000AA /* ReaderViewModel.swift in Sources */,
 				AE5F3155A07FC84B49909FBUILD /* ArchiveExtractor.swift in Sources */,
 				ZE8F4D37B2C6A5E9F1234567 /* ZipExtractor.swift in Sources */,
+				054D1CB7FDC143609B7DF65D /* ReadingSessionManager.swift in Sources */,
+				E62F9B4E42D7464BB1CB2ABD /* ReadingSession.swift in Sources */,
 				TD647232D17360463790FABUILD /* ToshoDocument.swift in Sources */,
 				RD8472A3E12B59C7F891BUILD /* ReadingDirection.swift in Sources */,
 				DL8472A3E12B59C7F891BUILD /* DebugLogger.swift in Sources */,
