@@ -10,15 +10,36 @@ import AppKit
 import UniformTypeIdentifiers
 
 struct ContentView: View {
+    @StateObject private var navigator = FileNavigatorViewModel()
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showingFavorites = false
 
     var body: some View {
         ZStack {
-            WelcomeView(
-                onOpen: openFileOrFolder
-            )
+            if navigator.hasRoot {
+                NavigationSplitView {
+                    FinderSidebarView(
+                        navigator: navigator,
+                        onSelectRoot: selectLibraryFolder,
+                        onClearRoot: { navigator.clearRoot() },
+                        onRefresh: { navigator.refreshTree(force: true) },
+                        onOpenFile: openInNewWindow
+                    )
+                } detail: {
+                    FinderDetailView(
+                        navigator: navigator,
+                        onOpenFile: openInNewWindow,
+                        onSelectRoot: selectLibraryFolder,
+                        onOpenDialog: openFileOrFolder
+                    )
+                }
+            } else {
+                FinderWelcomeView(
+                    onChooseRoot: selectLibraryFolder,
+                    onOpenDialog: openFileOrFolder
+                )
+            }
 
             if isLoading {
                 ProgressView()
@@ -156,65 +177,334 @@ struct ContentView: View {
         // NotificationCenterを通してファイルオープンを要求
         NotificationCenter.default.post(name: .openFileInNewWindow, object: url)
     }
+
+    private func selectLibraryFolder() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.prompt = "Choose"
+
+        if panel.runModal() == .OK, let url = panel.url {
+            navigator.updateRoot(to: url)
+        }
+    }
 }
 
-// MARK: - Welcome View
-struct WelcomeView: View {
-    let onOpen: () -> Void
+// MARK: - Finder Sidebar
+private struct FinderSidebarView: View {
+    @ObservedObject var navigator: FileNavigatorViewModel
+    let onSelectRoot: () -> Void
+    let onClearRoot: () -> Void
+    let onRefresh: () -> Void
+    let onOpenFile: (URL) -> Void
+
+    private var lastUpdatedText: String? {
+        guard let root = navigator.rootURL else { return nil }
+        let timestamp = navigator.lastUpdated(for: root) ?? navigator.lastRefreshed
+        guard let timestamp else { return nil }
+        return relativeTimestampText(timestamp)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("ライブラリ")
+                        .font(.headline)
+                    if let root = navigator.rootURL {
+                        Text(root.path)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                    if let lastUpdatedText {
+                        Text("最終更新: \(lastUpdatedText)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Spacer()
+                Menu {
+                    Button("再読み込み", action: onRefresh)
+                    Divider()
+                    Button("フォルダを変更…", action: onSelectRoot)
+                    Button("クリア", role: .destructive, action: onClearRoot)
+                } label: {
+                    Image(systemName: "gearshape")
+                }
+                .menuStyle(BorderlessButtonMenuStyle())
+            }
+            .padding(.horizontal, 8)
+
+            Divider()
+
+            if navigator.isLoading {
+                VStack {
+                    Spacer()
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                    Spacer()
+                }
+            } else if navigator.items.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("フォルダ内に表示可能な項目がありません")
+                        .font(.subheadline)
+                    Button("フォルダを変更…", action: onSelectRoot)
+                        .buttonStyle(LinkButtonStyle())
+                }
+                .padding(8)
+            } else {
+                List(selection: $navigator.selectedURL) {
+                    OutlineGroup(navigator.items, children: \.children) { item in
+                        FinderRow(item: item)
+                            .tag(item.url)
+                            .contentShape(Rectangle())
+                            .onTapGesture(count: 2) {
+                                if !item.isDirectory {
+                                    onOpenFile(item.url)
+                                }
+                            }
+                    }
+                }
+                .listStyle(SidebarListStyle())
+            }
+        }
+        .padding(.vertical, 12)
+        .frame(minWidth: 260)
+    }
+}
+
+// MARK: - Finder Detail
+private struct FinderDetailView: View {
+    @ObservedObject var navigator: FileNavigatorViewModel
+    let onOpenFile: (URL) -> Void
+    let onSelectRoot: () -> Void
+    let onOpenDialog: () -> Void
+
+    var body: some View {
+        Group {
+            if navigator.isLoading {
+                VStack {
+                    Spacer()
+                    ProgressView("読み込み中…")
+                        .progressViewStyle(CircularProgressViewStyle())
+                    Spacer()
+                }
+            } else
+            if let selected = navigator.selectedURL {
+                if navigator.isDirectory(selected) {
+                    DirectoryDetailView(
+                        directoryURL: selected,
+                        items: navigator.children(of: selected),
+                        lastRefreshed: navigator.lastUpdated(for: selected),
+                        onOpenFile: onOpenFile,
+                        onSelectNode: { navigator.selectedURL = $0 },
+                        onRefresh: { navigator.forceRefreshDirectory(at: selected) }
+                    )
+                } else if navigator.isSupportedFile(selected) {
+                    let parentURL = selected.deletingLastPathComponent()
+                    FileDetailView(
+                        url: selected,
+                        lastRefreshed: navigator.lastUpdated(for: parentURL) ?? navigator.lastRefreshed,
+                        onOpenFile: onOpenFile,
+                        onRefresh: { navigator.forceRefreshDirectory(at: parentURL) }
+                    )
+                } else {
+                    UnsupportedFileView(url: selected)
+                }
+            } else {
+                FinderWelcomeView(
+                    onChooseRoot: onSelectRoot,
+                    onOpenDialog: onOpenDialog
+                )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+// MARK: - Directory Detail
+private struct DirectoryDetailView: View {
+    let directoryURL: URL
+    let items: [FileNavigatorItem]
+    let lastRefreshed: Date?
+    let onOpenFile: (URL) -> Void
+    let onSelectNode: (URL) -> Void
+    let onRefresh: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(directoryURL.lastPathComponent)
+                        .font(.title2)
+                        .bold()
+                    Text(directoryURL.path)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if let lastRefreshed {
+                        Text("最終更新: \(relativeTimestampText(lastRefreshed))")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                Spacer()
+                Button(action: onRefresh) {
+                    Label("再読み込み", systemImage: "arrow.clockwise")
+                }
+                .buttonStyle(.borderless)
+                .help("フォルダ内容を再スキャン")
+            }
+
+            if items.isEmpty {
+                ContentUnavailableView(
+                    "空のフォルダ",
+                    systemImage: "folder",
+                    description: Text("サポート対象のファイルやサブフォルダがありません。")
+                )
+            } else {
+                List(items, id: \.id) { item in
+                    FinderRow(item: item)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            onSelectNode(item.url)
+                        }
+                        .onTapGesture(count: 2) {
+                            if item.isDirectory {
+                                onSelectNode(item.url)
+                            } else {
+                                onOpenFile(item.url)
+                            }
+                        }
+                }
+                .listStyle(.plain)
+            }
+            Spacer()
+        }
+        .padding(24)
+    }
+}
+
+// MARK: - File Detail
+private struct FileDetailView: View {
+    let url: URL
+    let lastRefreshed: Date?
+    let onOpenFile: (URL) -> Void
+    let onRefresh: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            HStack(spacing: 16) {
+                Image(systemName: "doc.richtext")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 48, height: 48)
+                    .foregroundColor(.accentColor)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(url.lastPathComponent)
+                        .font(.title2)
+                        .bold()
+                    Text(url.path)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if let lastRefreshed {
+                        Text("最終更新: \(relativeTimestampText(lastRefreshed))")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
+            Button(action: { onOpenFile(url) }) {
+                Label("このファイルを開く", systemImage: "play.circle")
+            }
+            .keyboardShortcut(.return, modifiers: [])
+
+            Button(action: onRefresh) {
+                Label("フォルダを再読み込み", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.link)
+
+            Spacer()
+        }
+        .padding(32)
+    }
+}
+
+// MARK: - Unsupported File View
+private struct UnsupportedFileView: View {
+    let url: URL
+
+    var body: some View {
+        ContentUnavailableView(
+            "サポート外のファイル",
+            systemImage: "xmark.octagon.fill",
+            description: Text("\(url.lastPathComponent) は現在のビューアでは開けません。")
+        )
+        .padding(32)
+    }
+}
+
+// MARK: - Finder Welcome
+private struct FinderWelcomeView: View {
+    let onChooseRoot: () -> Void
+    let onOpenDialog: () -> Void
 
     var body: some View {
         VStack(spacing: 30) {
-            Image(systemName: "book.closed.fill")
-                .font(.system(size: 80))
+            Image(systemName: "folder.fill.badge.plus")
+                .font(.system(size: 72))
                 .foregroundColor(.accentColor)
 
-            Text("Tosho")
-                .font(.system(size: 48, weight: .bold, design: .rounded))
+            Text("ライブラリを追加して開始")
+                .font(.title)
+                .bold()
 
-            Text("Beautiful Manga Reader for macOS")
-                .font(.title3)
-                .foregroundColor(.secondary)
-
-            VStack(spacing: 15) {
-                Button(action: onOpen) {
+            VStack(spacing: 16) {
+                Button(action: onChooseRoot) {
                     InstructionCard(
-                        icon: "folder.badge.plus",
-                        title: "Open...",
-                        shortcut: "⌘O",
-                        description: "Select files or folders\n(auto-detected)"
+                        icon: "folder",
+                        title: "ライブラリフォルダを選択",
+                        shortcut: "",
+                        description: "選択したフォルダ内の画像・アーカイブを常時表示"
                     )
                 }
                 .buttonStyle(PlainButtonStyle())
 
-                Text("or drag & drop files here")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-
-                // Supported formats info
-                VStack(spacing: 2) {
-                    Text("対応ファイル形式:")
-                        .font(.caption2)
-                        .fontWeight(.medium)
-                        .foregroundColor(.secondary)
-
-                    Text("画像: .jpg, .jpeg, .png, .webp, .heic, .tiff, .bmp, .gif, .avif")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-
-                    Text("アーカイブ: .zip, .cbz")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-
-                    Text("フォルダ: 画像ファイルを含むディレクトリ")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
+                Button(action: onOpenDialog) {
+                    InstructionCard(
+                        icon: "doc.fill",
+                        title: "単体ファイルを開く",
+                        shortcut: "⌘O",
+                        description: "従来どおりファイル/フォルダを直接開く"
+                    )
                 }
-                .padding(.top, 8)
+                .buttonStyle(PlainButtonStyle())
             }
-            .padding(.top, 20)
+
+            Text("またはファイルをドラッグ＆ドロップ")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Spacer()
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(NSColor.windowBackgroundColor))
+        .padding(40)
+    }
+}
+
+// MARK: - Finder Row
+private struct FinderRow: View {
+    let item: FileNavigatorItem
+
+    var body: some View {
+        Label {
+            Text(item.name)
+        } icon: {
+            Image(systemName: item.isDirectory ? "folder" : "doc.richtext")
+                .foregroundColor(item.isDirectory ? .accentColor : .secondary)
+        }
     }
 }
 
@@ -270,16 +560,6 @@ struct ContentView_Previews: PreviewProvider {
             .frame(width: 1200, height: 900)
     }
 }
-
-struct WelcomeView_Previews: PreviewProvider {
-    static var previews: some View {
-        WelcomeView(
-            onOpen: { print("Open") }
-        )
-        .frame(width: 1200, height: 900)
-    }
-}
-
 
 // MARK: - Thumbnail Gallery View
 struct ThumbnailGalleryView: View {
@@ -381,4 +661,11 @@ struct ThumbnailCard: View {
             }
         }
     }
+}
+
+// MARK: - Helper
+private func relativeTimestampText(_ date: Date) -> String {
+    let formatter = RelativeDateTimeFormatter()
+    formatter.unitsStyle = .short
+    return formatter.localizedString(for: date, relativeTo: Date())
 }
