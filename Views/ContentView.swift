@@ -260,9 +260,15 @@ private struct FinderSidebarView: View {
                         FinderRow(item: item)
                             .tag(item.url)
                             .contentShape(Rectangle())
-                            .onTapGesture(count: 2) {
-                                if !item.isDirectory {
-                                    onOpenFile(item.url)
+                            .contextMenu {
+                                if item.isDirectory {
+                                    Button("フォルダを表示") {
+                                        navigator.selectedURL = item.url
+                                    }
+                                } else {
+                                    Button("このファイルを開く") {
+                                        onOpenFile(item.url)
+                                    }
                                 }
                             }
                     }
@@ -370,11 +376,15 @@ private struct DirectoryDetailView: View {
                         .onTapGesture {
                             onSelectNode(item.url)
                         }
-                        .onTapGesture(count: 2) {
+                        .contextMenu {
                             if item.isDirectory {
-                                onSelectNode(item.url)
+                                Button("フォルダを表示") {
+                                    onSelectNode(item.url)
+                                }
                             } else {
-                                onOpenFile(item.url)
+                                Button("このファイルを開く") {
+                                    onOpenFile(item.url)
+                                }
                             }
                         }
                 }
