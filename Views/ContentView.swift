@@ -260,9 +260,18 @@ private struct FinderSidebarView: View {
                         FinderRow(item: item)
                             .tag(item.url)
                             .contentShape(Rectangle())
-                            .onTapGesture(count: 2) {
-                                if !item.isDirectory {
-                                    onOpenFile(item.url)
+                            .onTapGesture {
+                                navigator.selectedURL = item.url
+                            }
+                            .contextMenu {
+                                if item.isDirectory {
+                                    Button("このフォルダを開く") {
+                                        onOpenFile(item.url)
+                                    }
+                                } else {
+                                    Button("このファイルを開く") {
+                                        onOpenFile(item.url)
+                                    }
                                 }
                             }
                     }
@@ -294,21 +303,16 @@ private struct FinderDetailView: View {
             } else
             if let selected = navigator.selectedURL {
                 if navigator.isDirectory(selected) {
-                    DirectoryDetailView(
-                        directoryURL: selected,
-                        items: navigator.children(of: selected),
-                        lastRefreshed: navigator.lastUpdated(for: selected),
-                        onOpenFile: onOpenFile,
-                        onSelectNode: { navigator.selectedURL = $0 },
-                        onRefresh: { navigator.forceRefreshDirectory(at: selected) }
+                    SelectionPlaceholderView(
+                        systemImage: "folder",
+                        title: selected.lastPathComponent,
+                        message: "右クリックメニューからフォルダを開いてください。"
                     )
                 } else if navigator.isSupportedFile(selected) {
-                    let parentURL = selected.deletingLastPathComponent()
-                    FileDetailView(
-                        url: selected,
-                        lastRefreshed: navigator.lastUpdated(for: parentURL) ?? navigator.lastRefreshed,
-                        onOpenFile: onOpenFile,
-                        onRefresh: { navigator.forceRefreshDirectory(at: parentURL) }
+                    SelectionPlaceholderView(
+                        systemImage: "doc.text",
+                        title: selected.lastPathComponent,
+                        message: "右クリックメニューからファイルを開いてください。"
                     )
                 } else {
                     UnsupportedFileView(url: selected)
@@ -324,111 +328,18 @@ private struct FinderDetailView: View {
     }
 }
 
-// MARK: - Directory Detail
-private struct DirectoryDetailView: View {
-    let directoryURL: URL
-    let items: [FileNavigatorItem]
-    let lastRefreshed: Date?
-    let onOpenFile: (URL) -> Void
-    let onSelectNode: (URL) -> Void
-    let onRefresh: () -> Void
+// MARK: - Selection Placeholder
+private struct SelectionPlaceholderView: View {
+    let systemImage: String
+    let title: String
+    let message: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(directoryURL.lastPathComponent)
-                        .font(.title2)
-                        .bold()
-                    Text(directoryURL.path)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    if let lastRefreshed {
-                        Text("最終更新: \(relativeTimestampText(lastRefreshed))")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-                Spacer()
-                Button(action: onRefresh) {
-                    Label("再読み込み", systemImage: "arrow.clockwise")
-                }
-                .buttonStyle(.borderless)
-                .help("フォルダ内容を再スキャン")
-            }
-
-            if items.isEmpty {
-                ContentUnavailableView(
-                    "空のフォルダ",
-                    systemImage: "folder",
-                    description: Text("サポート対象のファイルやサブフォルダがありません。")
-                )
-            } else {
-                List(items, id: \.id) { item in
-                    FinderRow(item: item)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            onSelectNode(item.url)
-                        }
-                        .onTapGesture(count: 2) {
-                            if item.isDirectory {
-                                onSelectNode(item.url)
-                            } else {
-                                onOpenFile(item.url)
-                            }
-                        }
-                }
-                .listStyle(.plain)
-            }
-            Spacer()
-        }
-        .padding(24)
-    }
-}
-
-// MARK: - File Detail
-private struct FileDetailView: View {
-    let url: URL
-    let lastRefreshed: Date?
-    let onOpenFile: (URL) -> Void
-    let onRefresh: () -> Void
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            HStack(spacing: 16) {
-                Image(systemName: "doc.richtext")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 48, height: 48)
-                    .foregroundColor(.accentColor)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(url.lastPathComponent)
-                        .font(.title2)
-                        .bold()
-                    Text(url.path)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    if let lastRefreshed {
-                        Text("最終更新: \(relativeTimestampText(lastRefreshed))")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-
-            Button(action: { onOpenFile(url) }) {
-                Label("このファイルを開く", systemImage: "play.circle")
-            }
-            .keyboardShortcut(.return, modifiers: [])
-
-            Button(action: onRefresh) {
-                Label("フォルダを再読み込み", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(.link)
-
-            Spacer()
-        }
+        ContentUnavailableView(
+            title,
+            systemImage: systemImage,
+            description: Text(message)
+        )
         .padding(32)
     }
 }
@@ -505,59 +416,6 @@ private struct FinderRow: View {
             Image(systemName: item.isDirectory ? "folder" : "doc.richtext")
                 .foregroundColor(item.isDirectory ? .accentColor : .secondary)
         }
-    }
-}
-
-// MARK: - Instruction Card
-struct InstructionCard: View {
-    let icon: String
-    let title: String
-    let shortcut: String
-    let description: String
-
-    @State private var isHovered = false
-
-    var body: some View {
-        VStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 24))
-                .foregroundColor(.accentColor)
-
-            Text(title)
-                .font(.caption)
-                .fontWeight(.medium)
-
-            Text(description)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .multilineTextAlignment(.center)
-
-            Text(shortcut)
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(4)
-        }
-        .frame(width: 160, height: 120)
-        .padding()
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(8)
-        .shadow(color: .black.opacity(isHovered ? 0.2 : 0.1), radius: isHovered ? 4 : 2, x: 0, y: isHovered ? 2 : 1)
-        .scaleEffect(isHovered ? 1.02 : 1.0)
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
-        .onHover { hovering in
-            isHovered = hovering
-        }
-    }
-}
-
-// MARK: - Preview
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
-            .frame(width: 1200, height: 900)
     }
 }
 
@@ -668,4 +526,51 @@ private func relativeTimestampText(_ date: Date) -> String {
     let formatter = RelativeDateTimeFormatter()
     formatter.unitsStyle = .short
     return formatter.localizedString(for: date, relativeTo: Date())
+}
+
+// MARK: - Instruction Card
+private struct InstructionCard: View {
+    let icon: String
+    let title: String
+    let shortcut: String
+    let description: String
+
+    @State private var isHovered = false
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 24))
+                .foregroundColor(.accentColor)
+
+            Text(title)
+                .font(.caption)
+                .fontWeight(.medium)
+
+            Text(description)
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+
+            if !shortcut.isEmpty {
+                Text(shortcut)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.1))
+                    .cornerRadius(4)
+            }
+        }
+        .frame(width: 160, height: 120)
+        .padding()
+        .background(Color(NSColor.controlBackgroundColor))
+        .cornerRadius(8)
+        .shadow(color: .black.opacity(isHovered ? 0.2 : 0.1), radius: isHovered ? 4 : 2, x: 0, y: isHovered ? 2 : 1)
+        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
+        .onHover { hovering in
+            isHovered = hovering
+        }
+    }
 }
