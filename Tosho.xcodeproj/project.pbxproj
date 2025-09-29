@@ -11,6 +11,7 @@
 		D0000003A1000001000000AA /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0000004A1000001000000AA /* ContentView.swift */; };
 		D0000005A1000001000000AA /* ReaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0000006A1000001000000AA /* ReaderView.swift */; };
 		D0000007A1000001000000AA /* ReaderViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0000008A1000001000000AA /* ReaderViewModel.swift */; };
+		FNB1A2C3D4E5F60708090A0B /* FileNavigatorViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = FNB1A2C3D4E5F60708090A0A /* FileNavigatorViewModel.swift */; };
 		D0000009A1000001000000AA /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = D000000AA1000001000000AA /* Assets.xcassets */; };
 		AE5F3155A07FC84B49909FBUILD /* ArchiveExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = AE4C3DC8F29A8947FEBD80 /* ArchiveExtractor.swift */; };
 		ZE8F4D37B2C6A5E9F1234567 /* ZipExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = ZE9F2E48D3A5B1C6F7890123 /* ZipExtractor.swift */; };
@@ -27,6 +28,7 @@
 		D0000004A1000001000000AA /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		D0000006A1000001000000AA /* ReaderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderView.swift; sourceTree = "<group>"; };
 		D0000008A1000001000000AA /* ReaderViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderViewModel.swift; sourceTree = "<group>"; };
+		FNB1A2C3D4E5F60708090A0A /* FileNavigatorViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileNavigatorViewModel.swift; sourceTree = "<group>"; };
 		D000000AA1000001000000AA /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D000000BA1000001000000AA /* Tosho.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tosho.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D000000CA1000001000000AA /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -113,6 +115,7 @@
 			isa = PBXGroup;
 			children = (
 				D0000008A1000001000000AA /* ReaderViewModel.swift */,
+				FNB1A2C3D4E5F60708090A0A /* FileNavigatorViewModel.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -284,6 +287,7 @@
 				D0000003A1000001000000AA /* ContentView.swift in Sources */,
 				D0000005A1000001000000AA /* ReaderView.swift in Sources */,
 				D0000007A1000001000000AA /* ReaderViewModel.swift in Sources */,
+				FNB1A2C3D4E5F60708090A0B /* FileNavigatorViewModel.swift in Sources */,
 				AE5F3155A07FC84B49909FBUILD /* ArchiveExtractor.swift in Sources */,
 				ZE8F4D37B2C6A5E9F1234567 /* ZipExtractor.swift in Sources */,
 				054D1CB7FDC143609B7DF65D /* ReadingSessionManager.swift in Sources */,
