@@ -311,13 +311,7 @@ private struct FinderDetailView: View {
                         onRefresh: { navigator.forceRefreshDirectory(at: selected) }
                     )
                 } else if navigator.isSupportedFile(selected) {
-                    let parentURL = selected.deletingLastPathComponent()
-                    FileDetailView(
-                        url: selected,
-                        lastRefreshed: navigator.lastUpdated(for: parentURL) ?? navigator.lastRefreshed,
-                        onOpenFile: onOpenFile,
-                        onRefresh: { navigator.forceRefreshDirectory(at: parentURL) }
-                    )
+                    FileSelectionPlaceholderView(selectedURL: selected)
                 } else {
                     UnsupportedFileView(url: selected)
                 }
@@ -398,49 +392,16 @@ private struct DirectoryDetailView: View {
     }
 }
 
-// MARK: - File Detail
-private struct FileDetailView: View {
-    let url: URL
-    let lastRefreshed: Date?
-    let onOpenFile: (URL) -> Void
-    let onRefresh: () -> Void
+// MARK: - File Selection Placeholder
+private struct FileSelectionPlaceholderView: View {
+    let selectedURL: URL
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            HStack(spacing: 16) {
-                Image(systemName: "doc.richtext")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 48, height: 48)
-                    .foregroundColor(.accentColor)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(url.lastPathComponent)
-                        .font(.title2)
-                        .bold()
-                    Text(url.path)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    if let lastRefreshed {
-                        Text("最終更新: \(relativeTimestampText(lastRefreshed))")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-
-            Button(action: { onOpenFile(url) }) {
-                Label("このファイルを開く", systemImage: "play.circle")
-            }
-            .keyboardShortcut(.return, modifiers: [])
-
-            Button(action: onRefresh) {
-                Label("フォルダを再読み込み", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(.link)
-
-            Spacer()
-        }
+        ContentUnavailableView(
+            "ファイルを選択しました",
+            systemImage: "doc.text",
+            description: Text("右クリックメニューから開く操作を選択してください。\n\(selectedURL.lastPathComponent)")
+        )
         .padding(32)
     }
 }
