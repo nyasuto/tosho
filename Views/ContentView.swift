@@ -24,6 +24,7 @@ struct ContentView: View {
                         onSelectRoot: selectLibraryFolder,
                         onClearRoot: { navigator.clearRoot() },
                         onRefresh: { navigator.refreshTree(force: true) },
+                        onSelectURL: { navigator.selectedURL = $0 },
                         onOpenFile: openInNewWindow
                     )
                 } detail: {
@@ -197,6 +198,7 @@ private struct FinderSidebarView: View {
     let onSelectRoot: () -> Void
     let onClearRoot: () -> Void
     let onRefresh: () -> Void
+    let onSelectURL: (URL) -> Void
     let onOpenFile: (URL) -> Void
 
     private var lastUpdatedText: String? {
@@ -263,7 +265,7 @@ private struct FinderSidebarView: View {
                             .contextMenu {
                                 if item.isDirectory {
                                     Button("フォルダを表示") {
-                                        navigator.selectedURL = item.url
+                                        onSelectURL(item.url)
                                     }
                                 } else {
                                     Button("このファイルを開く") {
