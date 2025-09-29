@@ -24,6 +24,7 @@ struct ContentView: View {
                         onSelectRoot: selectLibraryFolder,
                         onClearRoot: { navigator.clearRoot() },
                         onRefresh: { navigator.refreshTree(force: true) },
+                        onSelectURL: { navigator.selectedURL = $0 },
                         onOpenFile: openInNewWindow
                     )
                 } detail: {
@@ -197,6 +198,7 @@ private struct FinderSidebarView: View {
     let onSelectRoot: () -> Void
     let onClearRoot: () -> Void
     let onRefresh: () -> Void
+    let onSelectURL: (URL) -> Void
     let onOpenFile: (URL) -> Void
 
     private var lastUpdatedText: String? {
@@ -260,9 +262,15 @@ private struct FinderSidebarView: View {
                         FinderRow(item: item)
                             .tag(item.url)
                             .contentShape(Rectangle())
-                            .onTapGesture(count: 2) {
-                                if !item.isDirectory {
-                                    onOpenFile(item.url)
+                            .contextMenu {
+                                if item.isDirectory {
+                                    Button("フォルダを表示") {
+                                        onSelectURL(item.url)
+                                    }
+                                } else {
+                                    Button("このファイルを開く") {
+                                        onOpenFile(item.url)
+                                    }
                                 }
                             }
                     }
@@ -303,13 +311,7 @@ private struct FinderDetailView: View {
                         onRefresh: { navigator.forceRefreshDirectory(at: selected) }
                     )
                 } else if navigator.isSupportedFile(selected) {
-                    let parentURL = selected.deletingLastPathComponent()
-                    FileDetailView(
-                        url: selected,
-                        lastRefreshed: navigator.lastUpdated(for: parentURL) ?? navigator.lastRefreshed,
-                        onOpenFile: onOpenFile,
-                        onRefresh: { navigator.forceRefreshDirectory(at: parentURL) }
-                    )
+                    FileSelectionPlaceholderView(selectedURL: selected)
                 } else {
                     UnsupportedFileView(url: selected)
                 }
@@ -370,11 +372,15 @@ private struct DirectoryDetailView: View {
                         .onTapGesture {
                             onSelectNode(item.url)
                         }
-                        .onTapGesture(count: 2) {
+                        .contextMenu {
                             if item.isDirectory {
-                                onSelectNode(item.url)
+                                Button("フォルダを表示") {
+                                    onSelectNode(item.url)
+                                }
                             } else {
-                                onOpenFile(item.url)
+                                Button("このファイルを開く") {
+                                    onOpenFile(item.url)
+                                }
                             }
                         }
                 }
@@ -386,49 +392,16 @@ private struct DirectoryDetailView: View {
     }
 }
 
-// MARK: - File Detail
-private struct FileDetailView: View {
-    let url: URL
-    let lastRefreshed: Date?
-    let onOpenFile: (URL) -> Void
-    let onRefresh: () -> Void
+// MARK: - File Selection Placeholder
+private struct FileSelectionPlaceholderView: View {
+    let selectedURL: URL
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            HStack(spacing: 16) {
-                Image(systemName: "doc.richtext")
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 48, height: 48)
-                    .foregroundColor(.accentColor)
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(url.lastPathComponent)
-                        .font(.title2)
-                        .bold()
-                    Text(url.path)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    if let lastRefreshed {
-                        Text("最終更新: \(relativeTimestampText(lastRefreshed))")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                    }
-                }
-            }
-
-            Button(action: { onOpenFile(url) }) {
-                Label("このファイルを開く", systemImage: "play.circle")
-            }
-            .keyboardShortcut(.return, modifiers: [])
-
-            Button(action: onRefresh) {
-                Label("フォルダを再読み込み", systemImage: "arrow.clockwise")
-            }
-            .buttonStyle(.link)
-
-            Spacer()
-        }
+        ContentUnavailableView(
+            "ファイルを選択しました",
+            systemImage: "doc.text",
+            description: Text("右クリックメニューから開く操作を選択してください。\n\(selectedURL.lastPathComponent)")
+        )
         .padding(32)
     }
 }
