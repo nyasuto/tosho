@@ -306,12 +306,20 @@ private struct FinderDetailView: View {
                         directoryURL: selected,
                         items: navigator.children(of: selected),
                         lastRefreshed: navigator.lastUpdated(for: selected),
+                        lastModifiedProvider: { navigator.lastModified(for: $0) },
+                        sortKey: $navigator.sortKey,
                         onOpenFile: onOpenFile,
                         onSelectNode: { navigator.selectedURL = $0 },
                         onRefresh: { navigator.forceRefreshDirectory(at: selected) }
                     )
                 } else if navigator.isSupportedFile(selected) {
-                    FileSelectionPlaceholderView(selectedURL: selected)
+                    let parentURL = selected.deletingLastPathComponent()
+                    FileDetailView(
+                        url: selected,
+                        lastRefreshed: navigator.lastUpdated(for: parentURL) ?? navigator.lastRefreshed,
+                        onOpenFile: onOpenFile,
+                        onRefresh: { navigator.forceRefreshDirectory(at: parentURL) }
+                    )
                 } else {
                     UnsupportedFileView(url: selected)
                 }
@@ -331,6 +339,8 @@ private struct DirectoryDetailView: View {
     let directoryURL: URL
     let items: [FileNavigatorItem]
     let lastRefreshed: Date?
+    let lastModifiedProvider: (URL) -> Date?
+    @Binding var sortKey: FileNavigatorViewModel.SortKey
     let onOpenFile: (URL) -> Void
     let onSelectNode: (URL) -> Void
     let onRefresh: () -> Void
@@ -351,6 +361,14 @@ private struct DirectoryDetailView: View {
                             .foregroundColor(.secondary)
                     }
                 }
+                Picker("ソート", selection: $sortKey) {
+                    ForEach(FileNavigatorViewModel.SortKey.allCases, id: \.self) { key in
+                        Text(key.rawValue).tag(key)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 220)
+
                 Spacer()
                 Button(action: onRefresh) {
                     Label("再読み込み", systemImage: "arrow.clockwise")
@@ -366,23 +384,40 @@ private struct DirectoryDetailView: View {
                     description: Text("サポート対象のファイルやサブフォルダがありません。")
                 )
             } else {
+                HStack {
+                    Text("名前")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                    Text("更新日")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 4)
+
                 List(items, id: \.id) { item in
-                    FinderRow(item: item)
-                        .contentShape(Rectangle())
-                        .onTapGesture {
-                            onSelectNode(item.url)
-                        }
-                        .contextMenu {
-                            if item.isDirectory {
-                                Button("フォルダを表示") {
-                                    onSelectNode(item.url)
-                                }
-                            } else {
-                                Button("このファイルを開く") {
-                                    onOpenFile(item.url)
-                                }
+                    HStack {
+                        FinderRow(item: item)
+                        Spacer()
+                        Text(formattedModifiedDate(for: item.url))
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        onSelectNode(item.url)
+                    }
+                    .contextMenu {
+                        if item.isDirectory {
+                            Button("フォルダを表示") {
+                                onSelectNode(item.url)
+                            }
+                        } else {
+                            Button("このファイルを開く") {
+                                onOpenFile(item.url)
                             }
                         }
+                    }
                 }
                 .listStyle(.plain)
             }
@@ -390,18 +425,64 @@ private struct DirectoryDetailView: View {
         }
         .padding(24)
     }
+
+    private func formattedModifiedDate(for url: URL) -> String {
+        guard let date = lastModifiedProvider(url) else { return "--" }
+        return DirectoryDetailView.dateFormatter.string(from: date)
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter
+    }()
 }
 
-// MARK: - File Selection Placeholder
-private struct FileSelectionPlaceholderView: View {
-    let selectedURL: URL
+
+// MARK: - File Detail
+private struct FileDetailView: View {
+    let url: URL
+    let lastRefreshed: Date?
+    let onOpenFile: (URL) -> Void
+    let onRefresh: () -> Void
 
     var body: some View {
-        ContentUnavailableView(
-            "ファイルを選択しました",
-            systemImage: "doc.text",
-            description: Text("右クリックメニューから開く操作を選択してください。\n\(selectedURL.lastPathComponent)")
-        )
+        VStack(alignment: .leading, spacing: 24) {
+            HStack(spacing: 16) {
+                Image(systemName: "doc.richtext")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 48, height: 48)
+                    .foregroundColor(.accentColor)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(url.lastPathComponent)
+                        .font(.title2)
+                        .bold()
+                    Text(url.path)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if let lastRefreshed {
+                        Text("最終更新: \(relativeTimestampText(lastRefreshed))")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            }
+
+            Button(action: { onOpenFile(url) }) {
+                Label("このファイルを開く", systemImage: "play.circle")
+            }
+            .keyboardShortcut(.return, modifiers: [])
+
+            Button(action: onRefresh) {
+                Label("フォルダを再読み込み", systemImage: "arrow.clockwise")
+            }
+            .buttonStyle(.link)
+
+            Spacer()
+        }
         .padding(32)
     }
 }

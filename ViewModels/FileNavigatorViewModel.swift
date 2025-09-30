@@ -15,8 +15,18 @@ final class FileNavigatorViewModel: ObservableObject {
     @Published private(set) var rootURL: URL?
     @Published private(set) var items: [FileNavigatorItem] = []
     @Published var selectedURL: URL?
+    @Published var sortKey: SortKey = .name {
+        didSet {
+            rebuildSortedItems()
+        }
+    }
     @Published private(set) var isLoading: Bool = false
     @Published private(set) var lastRefreshed: Date?
+
+    enum SortKey: String, CaseIterable {
+        case name = "名前"
+        case modified = "更新日"
+    }
 
     private let fileManager = FileManager.default
     private let userDefaults = UserDefaults.standard
@@ -89,7 +99,9 @@ final class FileNavigatorViewModel: ObservableObject {
         }
 
         if !force, let cached = cache[rootURL], Date().timeIntervalSince(cached.timestamp) < cacheTTL {
-            items = [cached.item]
+            let sorted = sortItem(cached.item)
+            items = [sorted]
+            cache[rootURL] = CachedEntry(item: sorted, timestamp: cached.timestamp)
             if selectedURL == nil { selectedURL = cached.item.url }
             isLoading = false
             lastRefreshed = cached.timestamp
@@ -119,10 +131,11 @@ final class FileNavigatorViewModel: ObservableObject {
                 if Task.isCancelled { return }
 
                 if let result {
-                    self.items = [result]
+                    let sorted = self.sortItem(result)
+                    self.items = [sorted]
                     if self.selectedURL == nil { self.selectedURL = result.url }
                     let now = Date()
-                    self.cache[targetURL] = CachedEntry(item: result, timestamp: now)
+                    self.cache[targetURL] = CachedEntry(item: sorted, timestamp: now)
                     self.lastRefreshed = now
                 } else {
                     self.items = []
@@ -167,6 +180,15 @@ final class FileNavigatorViewModel: ObservableObject {
         cache[url]?.timestamp
     }
 
+    func lastModified(for url: URL) -> Date? {
+        do {
+            let values = try url.resourceValues(forKeys: [.contentModificationDateKey])
+            return values.contentModificationDate
+        } catch {
+            return nil
+        }
+    }
+
     // MARK: - Private helpers
 
     private func currentChildren(of url: URL) -> [FileNavigatorItem] {
@@ -205,7 +227,6 @@ final class FileNavigatorViewModel: ObservableObject {
 
             await MainActor.run {
                 self.applyChildren(children, to: url)
-                self.cache[url] = CachedEntry(item: FileNavigatorItem(url: url, isDirectory: true, children: children), timestamp: Date())
                 self.directoryLoadTasks[url] = nil
             }
         }
@@ -213,13 +234,65 @@ final class FileNavigatorViewModel: ObservableObject {
 
     private func applyChildren(_ children: [FileNavigatorItem], to url: URL) {
         guard !items.isEmpty else { return }
-        items = items.map { update(item: $0, target: url, newChildren: children) }
-        if let root = items.first {
-            let timestamp = (url == root.url) ? Date() : (cache[root.url]?.timestamp ?? Date())
-            cache[root.url] = CachedEntry(item: root, timestamp: timestamp)
-            if url == root.url {
-                lastRefreshed = timestamp
+
+        let sortedChildren = sortedChildren(children)
+        items = items.map { update(item: $0, target: url, newChildren: sortedChildren) }
+        cache[url] = CachedEntry(item: FileNavigatorItem(url: url, isDirectory: true, children: sortedChildren), timestamp: Date())
+
+        if let root = items.first, let rootURL = rootURL {
+            let sortedRoot = sortItem(root)
+            items = [sortedRoot]
+            let rootTimestamp = cache[rootURL]?.timestamp ?? Date()
+            cache[rootURL] = CachedEntry(item: sortedRoot, timestamp: rootTimestamp)
+            if url == rootURL {
+                lastRefreshed = rootTimestamp
             }
+        }
+    }
+
+    private func rebuildSortedItems() {
+        guard let rootURL else { return }
+
+        cache = cache.reduce(into: [:]) { result, entry in
+            let (url, cachedEntry) = entry
+            let sortedItem = sortItem(cachedEntry.item)
+            result[url] = CachedEntry(item: sortedItem, timestamp: cachedEntry.timestamp)
+        }
+
+        if let cachedRoot = cache[rootURL] {
+            items = [cachedRoot.item]
+            lastRefreshed = cachedRoot.timestamp
+        }
+    }
+
+
+    private func sortedChildren(_ children: [FileNavigatorItem]) -> [FileNavigatorItem] {
+        children.map { sortItem($0) }.sorted(by: compare(_:_:))
+    }
+
+    private func sortItem(_ item: FileNavigatorItem) -> FileNavigatorItem {
+        var copy = item
+        if let children = item.children {
+            copy.children = sortedChildren(children)
+        }
+        return copy
+    }
+
+    private func compare(_ lhs: FileNavigatorItem, _ rhs: FileNavigatorItem) -> Bool {
+        if lhs.isDirectory != rhs.isDirectory {
+            return lhs.isDirectory && !rhs.isDirectory
+        }
+
+        switch sortKey {
+        case .name:
+            return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+        case .modified:
+            let lhsDate = lastModified(for: lhs.url) ?? .distantPast
+            let rhsDate = lastModified(for: rhs.url) ?? .distantPast
+            if lhsDate == rhsDate {
+                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
+            }
+            return lhsDate > rhsDate
         }
     }
 
@@ -357,7 +430,7 @@ final class FileNavigatorViewModel: ObservableObject {
             collected.append(child)
         }
 
-        let mapped: [FileNavigatorItem] = collected.compactMap { child in
+        return collected.compactMap { child in
             makeItem(
                 at: child,
                 depth: depth + 1,
@@ -366,17 +439,6 @@ final class FileNavigatorViewModel: ObservableObject {
                 fileManager: fileManager,
                 options: options
             )
-        }
-
-        return sortItems(mapped)
-    }
-
-    nonisolated private static func sortItems(_ items: [FileNavigatorItem]) -> [FileNavigatorItem] {
-        items.sorted { lhs, rhs in
-            if lhs.isDirectory == rhs.isDirectory {
-                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-            }
-            return lhs.isDirectory && !rhs.isDirectory
         }
     }
 }
