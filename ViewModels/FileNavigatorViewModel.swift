@@ -430,7 +430,7 @@ final class FileNavigatorViewModel: ObservableObject {
             collected.append(child)
         }
 
-        let mapped: [FileNavigatorItem] = collected.compactMap { child in
+        return collected.compactMap { child in
             makeItem(
                 at: child,
                 depth: depth + 1,
@@ -439,32 +439,6 @@ final class FileNavigatorViewModel: ObservableObject {
                 fileManager: fileManager,
                 options: options
             )
-        }
-
-        return mapped
-    }
-
-    nonisolated private static func sortItems(
-        _ items: [FileNavigatorItem],
-        by key: SortKey,
-        lastModifiedProvider: (URL) -> Date?
-    ) -> [FileNavigatorItem] {
-        items.sorted { lhs, rhs in
-            if lhs.isDirectory != rhs.isDirectory {
-                return lhs.isDirectory && !rhs.isDirectory
-            }
-
-            switch key {
-            case .name:
-                return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-            case .modified:
-                let lhsDate = lastModifiedProvider(lhs.url) ?? .distantPast
-                let rhsDate = lastModifiedProvider(rhs.url) ?? .distantPast
-                if lhsDate == rhsDate {
-                    return lhs.name.localizedCaseInsensitiveCompare(rhs.name) == .orderedAscending
-                }
-                return lhsDate > rhsDate
-            }
         }
     }
 }
